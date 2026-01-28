@@ -1,0 +1,38 @@
+# environments
+venv/
+__pycache__/
+*.pyc
+
+
+# inference outputs
+inference/*.json
+
+# model outputs
+qwen_lora_output/
+unsloth_compiled_cache/
+checkpoint-*/
+
+# system
+.DS_Store
+
+# Large Model Files
+outputs/
+*.safetensors
+*.bin
+*.pt
+wandb/
+*.log
+docker_build.log
+evaluation.log
+# Large Data Files
+data/
+*.json
+!requirements.txt
+!adapter_config.json
+!added_tokens.json
+!special_tokens_map.json
+!tokenizer.json
+!tokenizer_config.json
+!vocab.json
+!eval_results_v6.json
+

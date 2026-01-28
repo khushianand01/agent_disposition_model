@@ -1,0 +1,42 @@
+base_model: Qwen/Qwen3-8B
+model_type: qwen
+tokenizer_type: qwen
+
+load_in_4bit: true
+bnb_4bit_quant_type: nf4
+bnb_4bit_compute_dtype: float16
+
+datasets:
+  - path: data/splits/train_debug_50.json
+    type: instruction
+
+dataset_prepared_path: data/axolotl_cache
+val_set_size: 0.0
+
+sequence_len: 1024
+sample_packing: false
+
+adapter: qlora
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+
+micro_batch_size: 1
+gradient_accumulation_steps: 8
+num_epochs: 3
+learning_rate: 2e-4
+
+optimizer: paged_adamw_8bit
+lr_scheduler: cosine
+
+fp16: true
+bf16: false
+
+logging_steps: 1
+save_steps: 25
+output_dir: outputs/qwen3_debug_lora_axolotl
