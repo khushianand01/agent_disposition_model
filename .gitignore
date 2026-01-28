@@ -25,7 +25,8 @@ wandb/
 docker_build.log
 evaluation.log
 # Large Data Files
-data/
+data/calls_data.json
+data/raw/
 *.json
 !requirements.txt
 !adapter_config.json
@@ -35,4 +36,6 @@ data/
 !tokenizer_config.json
 !vocab.json
 !eval_results_v6.json
+!data/splits/*.json
+!data/calls_data_balanced_v6.json
 
