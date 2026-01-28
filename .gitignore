@@ -24,6 +24,7 @@ wandb/
 *.log
 docker_build.log
 evaluation.log
+*.jsonl
 # Large Data Files
 data/calls_data.json
 data/raw/

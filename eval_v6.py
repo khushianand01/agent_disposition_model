@@ -12,10 +12,11 @@ from sklearn.metrics import classification_report, accuracy_score
 # =========================
 CHECKPOINT_PATH = "outputs/qwen3_8b_v6_balanced/checkpoint-2566"
 TEST_DATA_PATH = "data/splits/test_v6.json"
-MAX_SEQ_LEN = 2048
+MAX_SEQ_LEN = 4096
 DTYPE = None
 LOAD_IN_4BIT = True
 SAMPLE_SIZE = None # None means process full dataset
+PROGRESS_FILE = "eval_results_v6_progress.jsonl"
 
 class MetaEvaluator:
     def __init__(self, checkpoint_path=CHECKPOINT_PATH):
@@ -62,7 +63,9 @@ class MetaEvaluator:
             json_start = generated_text.find('{')
             json_end = generated_text.rfind('}') + 1
             if json_start != -1 and json_end != 0:
-                return json.loads(generated_text[json_start:json_end])
+                # Clean nested or trailing characters if any
+                clean_json = generated_text[json_start:json_end]
+                return json.loads(clean_json)
             return None
         except:
             return None
@@ -79,43 +82,85 @@ def main():
     eval_data = test_data[:SAMPLE_SIZE] if SAMPLE_SIZE else test_data
     print(f"Evaluating on {len(eval_data)} examples...")
 
-    evaluator = MetaEvaluator()
-    
+    # Load existing progress
+    completed_indices = set()
+    if os.path.exists(PROGRESS_FILE):
+        with open(PROGRESS_FILE, "r") as f:
+            for line in f:
+                try:
+                    data = json.loads(line)
+                    completed_indices.add(data["index"])
+                except:
+                    continue
+        print(f"Found existing progress. Skipping {len(completed_indices)} already processed items.")
+
+    if len(completed_indices) < len(eval_data):
+        evaluator = MetaEvaluator()
+        
+        for i, item in enumerate(tqdm(eval_data)):
+            if i in completed_indices:
+                continue
+                
+            transcript = item["input"]
+            ground_truth = item["output"]
+            
+            prediction = evaluator.predict(transcript)
+            
+            # Save incrementally
+            with open(PROGRESS_FILE, "a") as f:
+                f.write(json.dumps({
+                    "index": i, 
+                    "prediction": prediction, 
+                    "ground_truth": ground_truth
+                }, ensure_ascii=False) + "\n")
+
+    # Final reporting from progress file
+    print("\nProcessing results for report...")
     y_true_disposition = []
     y_pred_disposition = []
     y_true_pay_disp = []
     y_pred_pay_disp = []
-    
+    all_results = []
     valid_json_count = 0
+    total_processed = 0
 
-    for item in tqdm(eval_data):
-        transcript = item["input"]
-        ground_truth = item["output"]
-        
-        prediction = evaluator.predict(transcript)
-        
-        if prediction:
-            valid_json_count += 1
-            
-            # Extract fields safely
-            y_true_disposition.append(str(ground_truth.get("disposition", "null")))
-            y_pred_disposition.append(str(prediction.get("disposition", "null")))
-            
-            y_true_pay_disp.append(str(ground_truth.get("payment_disposition", "null")))
-            y_pred_pay_disp.append(str(prediction.get("payment_disposition", "null")))
-        else:
-            # If JSON failed, we treat it as "null" or "error" for metrics
-            y_true_disposition.append(str(ground_truth.get("disposition", "null")))
-            y_pred_disposition.append("JSON_ERROR")
-            
-            y_true_pay_disp.append(str(ground_truth.get("payment_disposition", "null")))
-            y_pred_pay_disp.append("JSON_ERROR")
+    with open(PROGRESS_FILE, "r") as f:
+        for line in f:
+            try:
+                data = json.loads(line)
+                prediction = data["prediction"]
+                ground_truth = data["ground_truth"]
+                total_processed += 1
+
+                all_results.append({
+                    "index": data["index"],
+                    "prediction": prediction,
+                    "ground_truth": ground_truth
+                })
+
+                if prediction:
+                    valid_json_count += 1
+                    y_true_disposition.append(str(ground_truth.get("disposition", "null")))
+                    y_pred_disposition.append(str(prediction.get("disposition", "null")))
+                    y_true_pay_disp.append(str(ground_truth.get("payment_disposition", "null")))
+                    y_pred_pay_disp.append(str(prediction.get("payment_disposition", "null")))
+                else:
+                    y_true_disposition.append(str(ground_truth.get("disposition", "null")))
+                    y_pred_disposition.append("JSON_ERROR")
+                    y_true_pay_disp.append(str(ground_truth.get("payment_disposition", "null")))
+                    y_pred_pay_disp.append("JSON_ERROR")
+            except:
+                continue
+
+    if total_processed == 0:
+        print("No results processed.")
+        return
 
     # REPORTING
     print("\n" + "="*50)
     print("EVALUATION RESULTS")
     print("="*50)
-    json_validity = valid_json_count/len(eval_data)
+    json_validity = valid_json_count / total_processed
     print(f"JSON Validity Rate: {json_validity*100:.1f}%")
     
     disp_report = classification_report(y_true_disposition, y_pred_disposition, output_dict=True, zero_division=0)
@@ -134,11 +179,12 @@ def main():
     results = {
         "timestamp": str(date.today()),
         "model_checkpoint": CHECKPOINT_PATH,
-        "sample_size": len(eval_data),
+        "sample_size": total_processed,
         "json_validity_rate": json_validity,
         "overall_disposition_accuracy": overall_acc,
         "disposition_report": disp_report,
-        "payment_disposition_report": pay_disp_report
+        "payment_disposition_report": pay_disp_report,
+        "results": all_results
     }
     
     with open("eval_results_v6.json", "w") as f:
