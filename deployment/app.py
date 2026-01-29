@@ -38,6 +38,10 @@ model = get_model()
 def health_check():
     return {"status": "ok", "model": "Qwen/Qwen3-8B-LoRA"}
 
+@app.get("/")
+def read_root():
+    return {"status": "running", "message": "Disposition Extraction API is active. Use /predict for inference or /docs for documentation."}
+
 @app.post("/predict", response_model=DispositionResponse)
 def predict_disposition(request: TranscriptRequest):
     try:
@@ -59,4 +63,4 @@ def predict_disposition(request: TranscriptRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)

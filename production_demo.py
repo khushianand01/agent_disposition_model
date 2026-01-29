@@ -36,7 +36,10 @@ def production_pipeline(transcript, confidence_threshold=0.85):
         }
 
 if __name__ == "__main__":
-    sample_transcript = """Agent: Hello. Borrower: Hello. Agent: Good morning. Borrower: Morning. Agent: I am calling regarding your loan. When can we expect the payment? Borrower: I will pay one EMI by 7th Feb. I have some issues but I will clear it.
+    sample_transcript = """Agent: Hello, am I speaking with Rahul Sharma?
+Customer: Yes, speaking.
+Agent: This is regarding your overdue loan payment of ₹12,500.
+Customer: Okay, I’m aware. I’ll check and get back.
 """
     final_output = production_pipeline(sample_transcript, confidence_threshold=0.85)
     

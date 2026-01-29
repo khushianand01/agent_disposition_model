@@ -1,10 +1,9 @@
-
 import torch
 from unsloth import FastLanguageModel
 from transformers import TextStreamer
 import json
 from datetime import date, datetime, timedelta
-from dateutil.relativedelta import relativedelta
+from dateutil.relativedelta import relativedelta, MO, TU, WE, TH, FR, SA, SU
 import re
 import sys
 
@@ -43,12 +42,14 @@ STRICT RULES:
 1. Return ONLY valid JSON.
 2. If payment_disposition is 'PTP', you MUST populate 'ptp_amount' and 'ptp_date' if mentioned. 
 3. NEVER hallucinate numbers, dates, or details. Only extract what is explicitly stated in the transcript.
-4. If an amount or date is not mentioned, return null. Do not guess.
+4. If an amount or date is not mentioned, return null. Do not guess. NEVER make up an amount like 10000 or 5000 if it is not in the transcript.
 5. Do not only put dates/amounts in 'remarks'; they MUST be in their respective fields.
 6. Current Date for reference: {current_date}
 7. If a field is not mentioned, return null.
-8. If the borrower says "full amount" or "clear dues", you MAY use the outstanding amount mentioned by the Agent.
-9. Extract relative dates (e.g. "10th", "next week") into 'ptp_date'. Do not leave them only in remarks."""
+8. If the borrower says "full amount" or "clear dues" AND the Agent mentions an amount, you MAY use that amount. Otherwise, return null.
+9. Extract relative dates (e.g. "Friday", "Monday", "10th", "next week") into 'ptp_date'. Do not leave them only in remarks.
+10. FINAL WARNING: If a date or amount is NOT explicitly stated in the transcript, you MUST return null. Do NOT guess or provide 'dummy' values.
+11. If the borrower is unsure or refuses to give a commitment date (e.g. "Abhi kuch keh nahi sakta", "kuch keh nahi sakta"), set 'payment_disposition' to 'NO_PAYMENT_COMMITMENT' and 'disposition' to 'ANSWERED'."""
     
         return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
 ### Instruction:
@@ -67,13 +68,6 @@ STRICT RULES:
         """
         if not isinstance(result, dict): return result
 
-        # Rescue missing Date from Remarks if needed
-        global_date_regex = re.compile(r"\b(\d{1,2}(?:st|nd|rd|th)?)\b", re.IGNORECASE)
-        if not result.get("ptp_date") and result.get("remarks"):
-            # Check for date-like digits in remarks (e.g. "pay on 10th")
-            if global_date_regex.search(str(result["remarks"])):
-                 result["ptp_date"] = result["remarks"]
-
         # Current reference date
         curr_dt = date(2026, 1, 29)
         if current_date:
@@ -81,6 +75,68 @@ STRICT RULES:
                 dt_part = current_date.split(' ')[0]
                 curr_dt = datetime.strptime(dt_part, "%Y-%m-%d").date()
             except: pass
+
+        # Rescue missing Date from Remarks if needed
+        if result.get("ptp_date") and result.get("ptp_date") == result.get("remarks"):
+                 print(f"DEBUG: Rescuing ptp_date from remarks: {result['remarks']}")
+                 result["ptp_date"] = result["remarks"]
+
+        # Weekday Logic (Transcript Scan + Remarks Scan)
+        # We scan the TRANSCRIPT as well to catch "Friday" if the model missed it or hallucinated "25th"
+        weekday_map = {
+            "monday": MO, "tuesday": TU, "wednesday": WE, "thursday": TH, 
+            "friday": FR, "saturday": SA, "sunday": SU,
+            "mon": MO, "tue": TU, "wed": WE, "thu": TH, "fri": FR, "sat": SA, "sun": SU
+        }
+        
+        # Sources to check for weekdays: 1. Model Date, 2. Remarks, 3. Original Transcript
+        sources_to_check = [
+            str(result.get("ptp_date", "")).lower(),
+            str(result.get("remarks", "")).lower(),
+            transcript.lower() # Ultimate fallback
+        ]
+
+        found_date = None
+        for source in sources_to_check:
+            if found_date: break
+            
+            # Special Check for "Next Week" -> +7 Days
+            if "next week" in source:
+                found_date = (curr_dt + timedelta(days=7)).strftime("%Y-%m-%d")
+                break
+            
+            for day_name, day_obj in weekday_map.items():
+                # specific check to avoid matching "sun" in "sunday" twice etc, but greedy match is fine for now
+                if day_name in source:
+                    # Find the next occurrence
+                    parsed_dt = curr_dt + relativedelta(weekday=day_obj(+1))
+                    found_date = parsed_dt.strftime("%Y-%m-%d")
+                    break
+        
+        # Track if we rescued the date (to skip strict validation later)
+        date_rescued = False
+        
+        if found_date:
+            # If we found a weekday/relative date in text, trust it more than a hallucinated number
+            current_model_date = str(result.get("ptp_date", ""))
+            # Override if model date is empty OR not found in transcript
+            if not current_model_date or current_model_date not in transcript:
+                 result["ptp_date"] = found_date
+                 date_rescued = True
+
+        # Hindi Relative Date Logic (Kal/Aaj)
+        # Scan for "kal" (tomorrow) since model often misses it
+        val_lower = str(result.get("ptp_date", "")).lower()
+        remarks_lower = str(result.get("remarks", "")).lower()
+        transcript_lower = transcript.lower()
+        
+        # Check specific Hindi phrases in transcript
+        if "kal " in transcript_lower or " kal" in transcript_lower: # space to avoid matching within words
+             result["ptp_date"] = (curr_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+             date_rescued = True
+        elif "aaj " in transcript_lower or " aaj" in transcript_lower:
+             result["ptp_date"] = curr_dt.strftime("%Y-%m-%d")
+             date_rescued = True
         
         curr_year = curr_dt.year
         curr_month = curr_dt.month
@@ -97,6 +153,9 @@ STRICT RULES:
                     # For now, if it's a "clean" number not in text, it's likely a hallucination
                     if amt_val > 0:
                         result["ptp_amount"] = None
+                        # SANITIZE REMARKS: If the fake amount is in remarks, scrub it
+                        if amt_str in str(result.get("remarks", "")):
+                             result["remarks"] = "Customer mentioned full amount (exact figure not in text)"
             except:
                 pass
 
@@ -122,7 +181,14 @@ STRICT RULES:
             if not val_str or val_str.lower() == "null":
                 result[date_field] = None
                 continue
-
+            
+            # Simplified check: If it's a model output that looks like a day number ("25", "10th"), check if it exists.
+            # If it's a full date YYYY-MM-DD, we can't check easily because transcript says "10th".
+            # So, we rely on the fact that we previously scanned for validation.
+            
+            # Let's add a specific check for the "model made up a number" case.
+            # If valid, clean_val usually extracts a day.
+            
             parsed_dt = None
 
             # a. Handle YYYYMMDD format (e.g. 20260121)
@@ -137,11 +203,15 @@ STRICT RULES:
                     parsed_dt = datetime.strptime(val_str[:10], "%Y-%m-%d").date()
                 except: pass
 
-            # c. Handle just the day (e.g. "25")
+            # c. Handle just the day (e.g. "25") - use rescue logic first if ptp_date was null
             elif val_str.isdigit() and len(val_str) <= 2:
                 try:
                     day = int(val_str)
-                    parsed_dt = date(curr_year, curr_month, day)
+                    # If it's ptp_date and we rescued it from remarks, use current month/year first
+                    if date_field == "ptp_date" and result.get("ptp_date") == result.get("remarks"):
+                        parsed_dt = date(curr_year, curr_month, day)
+                    else: # Otherwise assume current year
+                        parsed_dt = date(curr_year, curr_month, day)
                 except: pass
 
             # d. Fallback: Try natural language and ISO-ish formats
@@ -165,26 +235,93 @@ STRICT RULES:
                         if match:
                             parsed_dt = date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
                 except: pass
-
-            # 3. Post-Parsing Corrections
+            
+            # Update the field with parsed object (temporary) or keep string if failed
             if parsed_dt:
-                # If a specific month was mentioned in transcript but model returned current month/different month
-                if mentioned_month and parsed_dt.month != mentioned_month:
-                    try:
-                        # Only override if the year is current or future
-                        if parsed_dt.year >= curr_year:
-                             parsed_dt = date(parsed_dt.year, mentioned_month, parsed_dt.day)
-                    except ValueError: # e.g. Feb 31st
-                         pass
+                 # Fix hallucinated past year (e.g. model returns 2025 when it's 2026)
+                 if parsed_dt.year < curr_year:
+                      parsed_dt = parsed_dt.replace(year=curr_year)
+                 
+                 # STRICT DAY VERIFICATION (New)
+                 # If this date was NOT rescued (i.e. it came from model generation), ensure the day number exists in text
+                 elif (date_field == "ptp_date" and not date_rescued) or (date_field == "followup_date"):
+                      day_str = str(parsed_dt.day)
+                      # Check for "25", "25th", "25-02", etc.
+                      # Regex: word boundary 25 word boundary OR 25th/st/rd/nd
+                      # Also check if it's the "current_date" (sometimes model echoes current date) -> Allow current date
+                      
+                      # Simplified: Just check if the day number appears in transcript digits
+                      # NOTE: This might match "2500" rupees. So we want \b25\b
+                      if day_str not in transcript:
+                           # Try with suffixes
+                           suffixes = ["th", "st", "nd", "rd"]
+                           has_match = False
+                           # 1. Exact match e.g. "on 25"
+                           if re.search(r"\b" + day_str + r"\b", transcript): has_match = True
+                           # 2. Suffix match e.g. "25th"
+                           if not has_match:
+                                for s in suffixes:
+                                     if (day_str + s) in transcript:
+                                          has_match = True; break
+                           
+                           # 3. Allow if it matches current date (Agent: "Today is 25th")
+                           if parsed_dt == curr_dt: has_match = True
+                           
+                           if not has_match:
+                                result[date_field] = None # Kill hallucination (e.g. 25th not in text)
+                                parsed_dt = None # Invalidate so we don't process it below
+                           else:
+                                result[date_field] = parsed_dt
+                      else:
+                           # It's in the text (simple, maybe part of 2500 but risky to filter too hard)
+                           # Let's enforce boundary check for safety
+                           if re.search(r"\b" + day_str + r"(?:th|st|nd|rd)?\b", transcript):
+                                result[date_field] = parsed_dt
+                           else:
+                                if parsed_dt == curr_dt:
+                                     result[date_field] = parsed_dt
+                                else:
+                                     result[date_field] = None
+                                     parsed_dt = None
+                 else:
+                      result[date_field] = parsed_dt
+            else:
+                 # If we couldn't parse it despite it being a string, kill it to be safe
+                 result[date_field] = None
 
-                # If date is in the past (e.g. said "7th" on the 29th), move to next month
-                if parsed_dt < curr_dt:
-                    # Only auto-shift if the transcript DOES NOT mention a specific month
-                    # Or if it's the current month but a past day
-                    if not mentioned_month or mentioned_month == curr_month:
-                        parsed_dt = parsed_dt + relativedelta(months=1)
-                
-                result[date_field] = parsed_dt.strftime("%Y-%m-%d")
+        # 3. Post-Parsing Corrections
+        for date_field in ["ptp_date", "followup_date"]: # Re-iterate to apply corrections to the parsed_dt objects
+            parsed_dt = result.get(date_field)
+            if not isinstance(parsed_dt, date): # Only process if it's a date object (i.e., successfully parsed)
+                continue
+
+            # If a specific month was mentioned in transcript but model returned current month/different month
+            if mentioned_month and parsed_dt.month != mentioned_month:
+                try:
+                    # Only override if the year is current or future
+                    if parsed_dt.year >= curr_year:
+                         parsed_dt = date(parsed_dt.year, mentioned_month, parsed_dt.day)
+                except ValueError: # e.g. Feb 31st
+                     pass
+
+            # If date is in the past (e.g. said "7th" on the 29th), move to next month
+            if parsed_dt < curr_dt:
+                # Only auto-shift if the transcript DOES NOT mention a specific month
+                # Or if it's the current month but a past day
+                if not mentioned_month or mentioned_month == curr_month:
+                    parsed_dt = parsed_dt + relativedelta(months=1)
+            
+            result[date_field] = parsed_dt # Store the date object back
+
+        # FINAL SYNC: If PTP Date exists but Followup is missing (or killed above), usually they recall on same day
+        if result.get("ptp_date") and not result.get("followup_date"):
+             result["followup_date"] = result["ptp_date"]
+             
+        # Convert all date objects back to strings
+        for f in ["ptp_date", "followup_date"]:
+             val = result.get(f)
+             if isinstance(val, date):
+                  result[f] = val.strftime("%Y-%m-%d")
 
         return result
 
@@ -211,6 +348,7 @@ STRICT RULES:
         # Decode text
         generated_ids = outputs.sequences[0][inputs["input_ids"].shape[-1]:]
         generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+        print(f"\n--- DEBUG: RAW GENERATED TEXT ---\n{generated_text}\n---------------------------------")
 
         # Calculate Smart Confidence Score (Weighted Average)
         confidence_score = 0.0
