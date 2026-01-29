@@ -53,3 +53,20 @@ python production_demo.py
 # Option 2: One-liner
 conda run -n disposition_v3 python production_demo.py
 ```
+
+### Production API (FastAPI)
+
+**1. Start the Production API Server:**
+```bash
+# This loads the model once and keeps it in VRAM for fast, repeated inferences
+conda run --no-capture-output -n disposition_v3 python deployment/app.py
+```
+
+**2. Test the API (from another terminal):**
+```bash
+curl -X POST "http://localhost:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "transcript": "Agent: When can you pay? Borrower: I will pay one EMI on 7th February."
+     }'
+```

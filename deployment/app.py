@@ -19,12 +19,12 @@ class TranscriptRequest(BaseModel):
     transcript: str
     current_date: str | None = None
 
-# Response Model (Partial, for flexibility)
+# Response Model
 class DispositionResponse(BaseModel):
     disposition: str | None = None
     payment_disposition: str | None = None
     reason_for_not_paying: str | None = None
-    ptp_amount: str | None = None
+    ptp_amount: float | str | None = None  # Updated to accommodate numeric extraction
     ptp_date: str | None = None
     followup_date: str | None = None
     remarks: str | None = None

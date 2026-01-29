@@ -47,10 +47,10 @@ STRICT RULES:
 5. Do not only put dates/amounts in 'remarks'; they MUST be in their respective fields.
 6. Current Date for reference: {current_date}
 7. If a field is not mentioned, return null.
-8. NEVER fabricate a PTP amount if the borrower doesn't say a specific number. Returning null is better than guessing."""
-        
+8. If the borrower says "full amount" or "clear dues", you MAY use the outstanding amount mentioned by the Agent.
+9. Extract relative dates (e.g. "10th", "next week") into 'ptp_date'. Do not leave them only in remarks."""
+    
         return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
-
 ### Instruction:
 {instruction}
 
@@ -66,6 +66,13 @@ STRICT RULES:
         Ensures dates are in YYYY-MM-DD format and verifies data against transcript.
         """
         if not isinstance(result, dict): return result
+
+        # Rescue missing Date from Remarks if needed
+        global_date_regex = re.compile(r"\b(\d{1,2}(?:st|nd|rd|th)?)\b", re.IGNORECASE)
+        if not result.get("ptp_date") and result.get("remarks"):
+            # Check for date-like digits in remarks (e.g. "pay on 10th")
+            if global_date_regex.search(str(result["remarks"])):
+                 result["ptp_date"] = result["remarks"]
 
         # Current reference date
         curr_dt = date(2026, 1, 29)
