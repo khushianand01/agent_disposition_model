@@ -43,4 +43,13 @@ To kill the running training process:
 ```bash
 pkill -f train_production.py
 ```
-*Note: This stops the training immediately.*
+## 6. Run Production Demo
+To test a single transcript using the production model:
+```bash
+# Option 1: Activate and Run
+source /home/ubuntu/miniconda3/bin/activate disposition_v3
+python production_demo.py
+
+# Option 2: One-liner
+conda run -n disposition_v3 python production_demo.py
+```
