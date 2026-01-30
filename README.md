@@ -8,13 +8,17 @@ A two-stage AI pipeline for extracting structured **Call Dispositions** and **Pa
 
 ## 🚀 Features
 
-### Two-Stage Architecture
+### Model Architecture
+
+**Qwen-2.5-3B-Instruct**: Single-stage extraction
+- Extracts all 7 fields in one inference call
+- Higher accuracy, larger model (~3GB VRAM)
+- Fields: disposition, payment_disposition, reason_for_not_paying, ptp_amount, ptp_date, followup_date, remarks
+
+**Ringg-1.5B**: Two-stage approach
 - **Stage-1**: Classification (disposition + payment_disposition) - 2 fields
 - **Stage-2**: Detailed extraction (reason, amounts, dates, remarks) - 5 additional fields
-
-### Dual Model Support
-- **Qwen-2.5-3B-Instruct**: Higher accuracy, larger model (~3GB VRAM)
-- **Ringg-1.5B**: Faster inference, smaller footprint (~1.5GB VRAM)
+- Faster inference, smaller footprint (~1.5GB VRAM per stage)
 
 ### Production Ready
 - **FastAPI** service for real-time inference (port 8080)
@@ -99,15 +103,20 @@ pkill -f "python app.py"
 
 ## 📊 Model Performance
 
-### Stage-1 (Disposition Classification)
-- **Ringg-1.5B Baseline**: 
+### Qwen-2.5-3B-Instruct (Single-Stage)
+- **Approach**: Extracts all 7 fields in one inference
+- **Training**: Stage-1 data (19,867 samples) for disposition classification
+- **Use case**: Higher accuracy requirements, sufficient GPU memory
+
+### Ringg-1.5B (Two-Stage)
+- **Stage-1 Baseline**: 
   - Disposition F1: 0.85
   - Payment Disposition F1: 0.82
   - Training: 19,867 samples
-
-### Stage-2 (Payment Details Extraction)
-- **Data**: 6,816 samples (34.3% of Stage-1 data)
-- **Fields**: reason_for_not_paying (98.8% coverage), ptp_amount (9.8%), ptp_date (9.5%), followup_date (30.2%), remarks (98.4%)
+- **Stage-2 Data**: 
+  - 6,816 samples (34.3% of Stage-1 data)
+  - Fields: reason_for_not_paying (98.8% coverage), ptp_amount (9.8%), ptp_date (9.5%), followup_date (30.2%), remarks (98.4%)
+- **Use case**: Resource-constrained environments, faster inference
 
 ---
 
