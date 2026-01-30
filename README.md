@@ -105,7 +105,19 @@ pkill -f "python app.py"
 
 ### Qwen-2.5-3B-Instruct (Single-Stage)
 - **Approach**: Extracts all 7 fields in one inference
-- **Training**: Stage-1 data (19,867 samples) for disposition classification
+- **Training**: 19,867 samples (balanced dataset v6)
+- **Evaluation** (1,173 test samples):
+  - Disposition Accuracy: **62.9%**
+  - Disposition F1 (weighted): **0.57**
+    - ANSWERED: 0.79
+    - WRONG_NUMBER: 0.74
+    - LANGUAGE_BARRIER: 0.62
+  - Payment Disposition Accuracy: **47.5%**
+  - Payment Disposition F1 (weighted): **0.52**
+    - PTP: 0.52
+    - NO_PROOF_GIVEN: 0.42
+    - SETTLEMENT: 0.46
+  - JSON Validity: **96.6%**
 - **Use case**: Higher accuracy requirements, sufficient GPU memory
 
 ### Ringg-1.5B (Two-Stage)
