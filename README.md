@@ -1,19 +1,57 @@
-# 📞 Disposition Extraction Model v2
+# 📞 Disposition Extraction Model v6
 
-An end-to-end AI pipeline for extracting structured **Call Dispositions** and **Payment Details** from conversational transcripts using **Qwen/Qwen3-8B** (via Unsloth).
+A two-stage AI pipeline for extracting structured **Call Dispositions** and **Payment Details** from conversational transcripts using **Qwen-2.5-3B-Instruct** and **Ringg-1.5B**.
 
 ![Status](https://img.shields.io/badge/Status-Active-success)
-![Model](https://img.shields.io/badge/Model-Qwen3%208B-blue)
-![Stack](https://img.shields.io/badge/Stack-Unsloth%20%7C%20FastAPI%20%7C%20Docker-blueviolet)
+![Models](https://img.shields.io/badge/Models-Qwen%202.5%203B%20%7C%20Ringg%201.5B-blue)
+![Stack](https://img.shields.io/badge/Stack-Unsloth%20%7C%20FastAPI-blueviolet)
 
 ## 🚀 Features
-- **Fine-Tuned SLM**: Customized **Qwen/Qwen3-8B** model (Small Language Model) optimized for call center analytics.
-- **Structured JSON Output**: Extracts 7 key fields including `disposition`, `ptp_amount`, `ptp_date`, etc.
-- **Confidence Scoring**: Returns a confidence score (0-1) for every prediction to route low-confidence calls for manual review.
-- **Production Ready**: 
-    - **FastAPI** Service for real-time inference.
-    - **Docker** Containerized for easy deployment.
-    - **Unsloth** Optimization (2x faster training, 60% less memory).
+
+### Two-Stage Architecture
+- **Stage-1**: Classification (disposition + payment_disposition) - 2 fields
+- **Stage-2**: Detailed extraction (reason, amounts, dates, remarks) - 5 additional fields
+
+### Dual Model Support
+- **Qwen-2.5-3B-Instruct**: Higher accuracy, larger model (~3GB VRAM)
+- **Ringg-1.5B**: Faster inference, smaller footprint (~1.5GB VRAM)
+
+### Production Ready
+- **FastAPI** service for real-time inference (port 8080)
+- **Confidence scoring** for quality control
+- **Unsloth** optimization (2x faster training, 60% less memory)
+- **Normalization helpers** for dates and amounts (Hindi/Hinglish support)
+
+---
+
+## 📁 Project Structure
+
+```
+Disposition_model2-main/
+├── qwen_3b/                    # Qwen model (3B parameters)
+│   ├── outputs/                # Trained model checkpoint
+│   ├── inference/              # Inference scripts
+│   ├── deployment/             # FastAPI server (app.py)
+│   └── README_COMMANDS.md      # Qwen-specific commands
+│
+├── ringg_slm/                  # Ringg model (1.5B parameters)
+│   ├── outputs/                # Trained model checkpoints
+│   ├── inference/              # Evaluation scripts
+│   ├── data/splits/            # Ringg-format data
+│   └── train_ringg_slm.py      # Training script
+│
+├── data/                       # Shared data
+│   └── splits/                 # Train/val/test splits
+│       ├── train_v11_s1.json   # Stage-1 (19K samples)
+│       ├── val_v11_s1.json     # Stage-1 validation
+│       ├── train_v11_s2.json   # Stage-2 (5.8K samples)
+│       └── val_v11_s2.json     # Stage-2 validation
+│
+└── preprocess/                 # Data preparation
+    ├── normalization_helpers.py
+    ├── stage2_prompts.py
+    └── README_STAGE2_PIPELINE.md
+```
 
 ---
 
@@ -21,136 +59,88 @@ An end-to-end AI pipeline for extracting structured **Call Dispositions** and **
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/khushianand01/Disposition_model2.git
-cd Disposition_model2
+git clone https://github.com/khushianand01/Disposition_model_v6.git
+cd Disposition_model_v6
 ```
 
 ### 2. Install Dependencies
 ```bash
-# Recommended: Use a virtual environment
-python3 -m venv venv
-source venv/bin/activate
+# Create conda environment
+conda create -n disposition_v3 python=3.10
+conda activate disposition_v3
 
+# Install requirements
 pip install -r requirements.txt
 ```
 
 ---
 
-## 🏃‍♂️ Usage
+## 🏃‍♂️ Quick Start
 
-### 1. Data Preparation (From Scratch)
-To prepare the dataset with **Class Balancing** and **Synthetic Augmentation**:
+### Run Qwen FastAPI Server
 
 ```bash
-# 1. OPTIONAL: Generate additional synthetic data for rare classes
-python3 preprocess/generate_synthetic_extra.py
+# Start server (runs in background)
+cd qwen_3b/deployment
+nohup conda run --no-capture-output -n disposition_v3 python app.py > qwen_api.log 2>&1 &
 
-# 2. REQUIRED: Balance dataset (Merge Real + Synthetic -> Train/Val/Test Splits)
-# This creates data/splits/train_final.json (used for training)
-python3 preprocess/force_balance_dataset.py
+# Test the API
+curl -X POST "http://localhost:8080/predict" \
+     -H "Content-Type: application/json" \
+     -d '{"transcript": "Agent: When can you pay? Borrower: I will pay 3000 on 7th Feb."}'
+
+# Stop server
+pkill -f "python app.py"
 ```
 
-### 2. Training (Fine-Tuning)
-Run the training script (supports `nohup` for overnight runs):
-```bash
-# Start Training (on GPU)
-python3 train/train_unsloth.py
-```
-*   **Output**: Saved to `outputs/qwen3_8b_lora_mapped`
-*   **Logs**: Check `training.log` to monitor progress.
-
-### 3. Evaluation
-Run the full evaluation report on the test set:
-```bash
-python3 inference/evaluate_final.py
-```
-This generates:
-- **Macro F1 Scores** per field.
-- **Confidence Calibration** report.
-- **Accuracy breakdown** for rare classes.
-
-### 4. API Serving (FastAPI)
-Start the REST API server:
-```bash
-python3 deployment/app.py
-```
-*   **Swagger UI**: Visit `http://localhost:8000/docs` to test interactively.
-
-### 5. Docker Deployment
-Build and run the containerized service:
-```bash
-# Build
-docker build -t disposition-model .
-
-# Run (Requires GPU)
-docker run --gpus all -p 8000:8000 disposition-model
-```
+**Note**: Server takes ~60 seconds to load model on startup.
 
 ---
 
-## 📊 Project Structure
+## 📊 Model Performance
 
-```text
-├── data/
-│   ├── splits/             # train_final.json, val_final.json, test_final.json
-│   └── processed/          # Intermediate files
-│
-├── qwen_3b/                # Qwen 3B specific scripts and assets
-│   ├── train_production.py
-│   ├── run_v3_training.sh
-│   ├── eval_v6.py
-│   └── ...
-│
-├── ringg_slm/              # Ringg SLM specific scripts
-│   ├── train_ringg_slm.py
-│   └── test_ringg_slm.py
-│
-├── deployment/
-│   └── app.py              # FastAPI Service
-│
-├── inference/
-│   ├── inference.py        # Core formatting & prediction logic
-│   └── evaluate_final.py   # Metrics & Calibration calculation
-│
-├── preprocess/
-│   ├── force_balance_dataset.py
-│   └── ...
-│
-├── outputs/                # Trained model artifacts
-├── Dockerfile              # Container definition
-└── README.md               # Project documentation
-```
+### Stage-1 (Disposition Classification)
+- **Ringg-1.5B Baseline**: 
+  - Disposition F1: 0.85
+  - Payment Disposition F1: 0.82
+  - Training: 19,867 samples
 
-## 🔍 Model Details
-
-### Input Format
-```text
-Agent: Hello, calling from Collections...
-Borrower: I can pay 5000 next Tuesday.
-```
-
-### Output JSON
-```json
-{
-  "disposition": "PROMISE_TO_PAY",
-  "payment_disposition": "PTP",
-  "reason_for_not_paying": null,
-  "ptp_amount": "5000",
-  "ptp_date": "next Tuesday",
-  "followup_date": "next Tuesday",
-  "remarks": "Borrower promised to pay 5000.",
-  "confidence_score": 0.9852
-}
-```
+### Stage-2 (Payment Details Extraction)
+- **Data**: 6,816 samples (34.3% of Stage-1 data)
+- **Fields**: reason_for_not_paying (98.8% coverage), ptp_amount (9.8%), ptp_date (9.5%), followup_date (30.2%), remarks (98.4%)
 
 ---
 
-## 📈 Performance
-- **Training Time**: ~12 Hours on T4 GPU (1 Epoch)
-- **Inference Speed**: ~5-8 seconds per call (T4 GPU)
-- **Optimization**: Unsloth 4-bit quantization reduces VRAM usage by ~50%.
+## 🔧 Training
+
+### Train Ringg Stage-1
+```bash
+cd ringg_slm
+./run_ringg_stage1.sh
+```
+
+### Train Qwen Stage-1
+```bash
+cd qwen_3b
+python train_production.py
+```
+
+See `qwen_3b/README_COMMANDS.md` and `ringg_slm/README.md` for detailed commands.
+
+---
+
+## 📈 GPU Requirements
+
+- **Training**: 1x Tesla T4 (16GB) or better
+- **Inference**: 
+  - Qwen API: ~4-5 GB VRAM
+  - Ringg: ~2-3 GB VRAM
+- **Note**: Cannot run both Ringg training + Qwen API simultaneously on T4 (OOM)
 
 ---
 
 ## 📧 Contact
-Project Maintainer: Khushi Anand
+
+**Project**: Disposition Model v6  
+**Repository**: https://github.com/khushianand01/Disposition_model_v6  
+**Maintainer**: Khushi Anand

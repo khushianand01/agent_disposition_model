@@ -10,7 +10,7 @@ import sys
 # =========================
 # CONFIG
 # =========================
-MODEL_PATH = "outputs/qwen3_8b_v6_balanced" # Latest evaluation checkpoint
+MODEL_PATH = "/home/ubuntu/Disposition_model2-main/qwen_3b/outputs" # Qwen model checkpoint
 MAX_SEQ_LEN = 4096
 DTYPE = None # Auto
 LOAD_IN_4BIT = True

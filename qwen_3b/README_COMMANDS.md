@@ -58,9 +58,21 @@ conda run -n disposition_v3 python production_demo.py
 
 **1. Start the Production API Server:**
 ```bash
-# This loads the model once and keeps it in VRAM for fast, repeated inferences
-conda run --no-capture-output -n disposition_v3 python deployment/app.py
+# From the deployment directory
+cd /home/ubuntu/Disposition_model2-main/qwen_3b/deployment
+nohup conda run --no-capture-output -n disposition_v3 python app.py > qwen_api.log 2>&1 &
+
+# Check server status
+ps aux | grep app.py
+
+# View logs
+tail -f qwen_api.log
 ```
+
+**Server Details:**
+- Port: 8080
+- Model: `/home/ubuntu/Disposition_model2-main/qwen_3b/outputs`
+- Startup time: ~60 seconds (loading checkpoint shards)
 
 **2. Test the API (from another terminal):**
 ```bash
@@ -69,4 +81,9 @@ curl -X POST "http://localhost:8080/predict" \
      -d '{
        "transcript": "Agent: When can you pay? Borrower: I will pay one EMI on 7th February."
      }'
+```
+
+**3. Stop the API Server:**
+```bash
+pkill -f "python app.py"
 ```
