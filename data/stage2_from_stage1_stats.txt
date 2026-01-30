@@ -1,0 +1,33 @@
+============================================================
+STAGE-2 EXTRACTION FROM STAGE-1 DATA
+============================================================
+
+Total Stage-1 Samples: 19867
+Stage-2 Eligible: 6816 (34.3%)
+Matched in Raw Data: 6816
+
+Disposition Distribution (Stage-1):
+----------------------------------------
+✓ ANSWERED                                   6943
+  ANSWERED_DISCONNECTED                      1339
+✓ ANSWERED_BY_FAMILY_MEMBER                  1286
+  CALL_DISCONNECTED_BY_CUSTOMER              1260
+  ANSWERED_VOICE_ISSUE                       1256
+  SILENCE_ISSUE                              1190
+  LANGUAGE_BARRIER                           1183
+  AUTOMATED_VOICE                            1168
+  WRONG_NUMBER                               1162
+✓ CALL_BACK_LATER                             945
+
+Payment Disposition Distribution:
+----------------------------------------
+  None                                      12852
+✓ NO_PAYMENT_COMMITMENT                      1360
+✓ PTP                                        1280
+✓ DENIED_TO_PAY                              1195
+✓ NO_PROOF_GIVEN                             1148
+✓ PAID                                        939
+✓ SETTLEMENT                                  611
+✓ PARTIAL_PAYMENT                             203
+✓ WILL_PAY_AFTER_VISIT                        126
+✓ WANT_FORECLOSURE                             96

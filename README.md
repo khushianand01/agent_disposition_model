@@ -95,6 +95,16 @@ docker run --gpus all -p 8000:8000 disposition-model
 │   ├── splits/             # train_final.json, val_final.json, test_final.json
 │   └── processed/          # Intermediate files
 │
+├── qwen_3b/                # Qwen 3B specific scripts and assets
+│   ├── train_production.py
+│   ├── run_v3_training.sh
+│   ├── eval_v6.py
+│   └── ...
+│
+├── ringg_slm/              # Ringg SLM specific scripts
+│   ├── train_ringg_slm.py
+│   └── test_ringg_slm.py
+│
 ├── deployment/
 │   └── app.py              # FastAPI Service
 │
@@ -103,12 +113,8 @@ docker run --gpus all -p 8000:8000 disposition-model
 │   └── evaluate_final.py   # Metrics & Calibration calculation
 │
 ├── preprocess/
-│   ├── force_balance_dataset.py # MAIN script to create final datasets
-│   ├── generate_synthetic_extra.py
-│   └── clean_and_format.py
-│
-├── train/
-│   └── train_unsloth.py    # Fine-tuning script (QLoRA)
+│   ├── force_balance_dataset.py
+│   └── ...
 │
 ├── outputs/                # Trained model artifacts
 ├── Dockerfile              # Container definition
