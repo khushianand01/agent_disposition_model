@@ -107,6 +107,7 @@ pkill -f "python app.py"
 - **Approach**: Extracts all 7 fields in one inference
 - **Training**: 19,867 samples (balanced dataset v6)
 - **Evaluation** (1,173 test samples):
+  - **Overall Accuracy**: 62.9% (disposition) + 47.5% (payment_disp) = **55.2% average**
   - Disposition Accuracy: **62.9%**
   - Disposition F1 (weighted): **0.57**
     - ANSWERED: 0.79
