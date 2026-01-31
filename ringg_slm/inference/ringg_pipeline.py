@@ -201,15 +201,10 @@ class RinggPipeline:
         
         if fixed_date:
             print(f"[DEBUG] Date mapping success: {extracted_date} -> {fixed_date}")
-            s2_json["payment_date"] = fixed_date
-            # Clean up internal key
-            if "ptp_date" in s2_json:
-                del s2_json["ptp_date"]
+            s2_json["ptp_date"] = fixed_date
         else:
-            # If no date found anywhere, ensure payment_date is null
-            s2_json["payment_date"] = None
-            if "ptp_date" in s2_json:
-                del s2_json["ptp_date"]
+            # If no date found anywhere, ensure ptp_date is null
+            s2_json["ptp_date"] = None
 
         # Robust Amount Extraction Fallback
         # Match numbers that look like payments (e.g., 3000, 5000, 10,000)
@@ -239,16 +234,12 @@ class RinggPipeline:
 
         # --- Smart Post-Processing Logic ---
         # Ensure all required fields are present and named correctly
-        # The user specifically requested 'payment_date' and 'reason_for_not_paying'
-        
-        # Step 1: Handle Date Mapping (ptp_date -> payment_date)
-        if "ptp_date" in s2_json:
-            if not s2_json.get("payment_date"):
-                s2_json["payment_date"] = s2_json["ptp_date"]
-            del s2_json["ptp_date"] # Remove internal key
+        # Step 1: Handle Date mapping (Internal consistency)
+        # We already standardized on ptp_date in the mapper block
+        pass
             
         # Step 2: Ensure all 5 keys exist
-        required_keys = ["reason_for_not_paying", "payment_amount", "payment_date", "followup_date", "remarks"]
+        required_keys = ["reason_for_not_paying", "payment_amount", "ptp_date", "followup_date", "remarks"]
         final_s2 = {}
         for key in required_keys:
             final_s2[key] = s2_json.get(key, None)
@@ -289,7 +280,9 @@ class RinggPipeline:
 
         # Step 4: Global PTP Override
         # If Stage 2 extracted valid PTP details, force Stage 1 to PTP
-        if final_s2.get("payment_amount") or final_s2.get("payment_date"):
+        # Step 4: Global PTP Override
+        # If Stage 2 extracted valid PTP details, force Stage 1 to PTP
+        if final_s2.get("payment_amount") or final_s2.get("ptp_date"):
             s1_json["payment_disposition"] = "PTP"
             
         # Update s2_json for return
