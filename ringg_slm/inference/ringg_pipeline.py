@@ -52,14 +52,14 @@ Extract structured payment-related information from the call transcript.
    - "reason_for_not_paying": Select the most appropriate enum from the following list:
      [BUSINESS_CLOSED, BUSINESS_LOSS, CLAIMING_FRAUD, CLAIMING_PAYMENT_IS_COMPLETED, CUSTOMER_EXPIRED, CUSTOMER_NOT_TELLING_REASON, CUSTOMER_PLANS_TO_VISIT_BRANCH, DEATH_IN_FAMILY, FUND_ISSUE, GRIEVANCE_APP_ISSUE, GRIEVANCE_CALLER_MISCONDUCT, GRIEVANCE_FRAUD, GRIEVANCE_LOAN_AMOUNT_DISPUTE, JOB_CHANGED_WAITING_FOR_SALARY, LOAN_CLOSURE_MISCOMMUNICATION, LOAN_TAKEN_BY_KNOWN_PARTY, LOST_JOB, MEDICAL_ISSUE, MULTIPLE_LOANS, OTHER_PERSON_TAKEN, OTHER_REASONS, PENALTY_ISSUE, SERVICE_ISSUE, TRUST_ISSUE]
      Default to CUSTOMER_NOT_TELLING_REASON if no specific reason is given.
-   - "ptp_amount": The exact amount (number) promised for future payment.
+   - "payment_amount": The exact amount (number) promised for future payment.
    - "ptp_date": The future date promised (strictly YYYY-MM-DD format).
    - "remarks": A short summary of the outcome.
 
 2. Extraction Priorities:
    - PRIORITY: If multiple amounts are mentioned, extract the one promised for the FUTURE (e.g., "baaki 2500 dunga" -> 2500).
    - REASONING: If the customer mentions job loss, financial crisis, or app issues, map it to the corresponding enum (e.g., "job chali gayi" -> LOST_JOB).
-   - TENSE: Extract "ptp_amount" and "ptp_date" IF AND ONLY IF the customer mentions them in a FUTURE context (e.g., "dunga", "karunga").
+   - TENSE: Extract "payment_amount" and "ptp_date" IF AND ONLY IF the customer mentions them in a FUTURE context (e.g., "dunga", "karunga").
 
 3. Date Logic:
    - Use provided "current_date" to calculate "ptp_date".
@@ -69,7 +69,7 @@ Extract structured payment-related information from the call transcript.
 REQUIRED OUTPUT FORMAT (ALL 5 FIELDS MUST BE PRESENT):
 {{
   "reason_for_not_paying": "enum_value",
-  "ptp_amount": number or null,
+  "payment_amount": number or null,
   "ptp_date": "YYYY-MM-DD" or null,
   "followup_date": "YYYY-MM-DD" or null,
   "remarks": "brief note" or null
@@ -77,10 +77,10 @@ REQUIRED OUTPUT FORMAT (ALL 5 FIELDS MUST BE PRESENT):
 
 ### Examples:
 Transcript: "Agent: EMI delay kyu ho rahi hai? Borrower: Job chali gayi hai meri is month, payment nahi de paunga."
-Response: {{"reason_for_not_paying": "LOST_JOB", "ptp_amount": null, "ptp_date": null, "followup_date": null, "remarks": "customer lost his job and cannot pay this month"}}
+Response: {{"reason_for_not_paying": "LOST_JOB", "payment_amount": null, "ptp_date": null, "followup_date": null, "remarks": "customer lost his job and cannot pay this month"}}
 
 Transcript: "Agent: Payment kab karoge? Borrower: Kal 4000 pay kar dunga."
-Response: {{"reason_for_not_paying": "CUSTOMER_NOT_TELLING_REASON", "ptp_amount": 4000, "ptp_date": "2026-02-01", "followup_date": "2026-02-02", "remarks": "customer promised 4k tomorrow"}}
+Response: {{"reason_for_not_paying": "CUSTOMER_NOT_TELLING_REASON", "payment_amount": 4000, "ptp_date": "2026-02-01", "followup_date": "2026-02-02", "remarks": "customer promised 4k tomorrow"}}
 
 ### Input:
 {}
@@ -211,6 +211,31 @@ class RinggPipeline:
             if "ptp_date" in s2_json:
                 del s2_json["ptp_date"]
 
+        # Robust Amount Extraction Fallback
+        # Match numbers that look like payments (e.g., 3000, 5000, 10,000)
+        # Avoid matching dates or small IDs
+        model_amount = s2_json.get("payment_amount") or s2_json.get("ptp_amount")
+        if not model_amount:
+            import re
+            # Extract numbers > 100 to avoid matching dates or small counts
+            amounts = re.findall(r'\b(\d{3,6})\b', transcript)
+            if amounts:
+                # Pick the largest amount mentioned or the last one if both look similar
+                fallback_amount = float(amounts[-1])
+                print(f"[DEBUG] Amount fallback mapping: None -> {fallback_amount}")
+                s2_json["payment_amount"] = fallback_amount
+            else:
+                s2_json["payment_amount"] = None
+        else:
+            try:
+                s2_json["payment_amount"] = float(model_amount)
+            except:
+                s2_json["payment_amount"] = None
+        
+        # Clean up internal key
+        if "ptp_amount" in s2_json:
+            del s2_json["ptp_amount"]
+
 
         # --- Smart Post-Processing Logic ---
         # Ensure all required fields are present and named correctly
@@ -223,7 +248,7 @@ class RinggPipeline:
             del s2_json["ptp_date"] # Remove internal key
             
         # Step 2: Ensure all 5 keys exist
-        required_keys = ["reason_for_not_paying", "ptp_amount", "payment_date", "followup_date", "remarks"]
+        required_keys = ["reason_for_not_paying", "payment_amount", "payment_date", "followup_date", "remarks"]
         final_s2 = {}
         for key in required_keys:
             final_s2[key] = s2_json.get(key, None)
@@ -264,7 +289,7 @@ class RinggPipeline:
 
         # Step 4: Global PTP Override
         # If Stage 2 extracted valid PTP details, force Stage 1 to PTP
-        if final_s2.get("ptp_amount") or final_s2.get("payment_date"):
+        if final_s2.get("payment_amount") or final_s2.get("payment_date"):
             s1_json["payment_disposition"] = "PTP"
             
         # Update s2_json for return
