@@ -81,13 +81,19 @@ pip install -r requirements.txt
 
 ## 🏃‍♂️ Quick Start
 
-### Run Qwen FastAPI Server
+### Run Ringg Unified Pipeline (Two-Stage)
+This runs BOTH Stage 1 (Classification) and Stage 2 (Extraction) automatically.
 
+```bash
+/home/ubuntu/miniconda3/envs/disposition_v2/bin/python ringg_slm/inference/ringg_pipeline.py
+```
+
+### Run Qwen FastAPI Server
 ```bash
 # Start server (runs in background)
 cd qwen_3b/deployment
-nohup conda run --no-capture-output -n disposition_v3 python app.py > qwen_api.log 2>&1 &
-
+nohup /home/ubuntu/miniconda3/envs/disposition_v2/bin/python app.py > qwen_api.log 2>&1 &
+```
 # Test the API
 curl -X POST "http://localhost:8080/predict" \
      -H "Content-Type: application/json" \
@@ -123,12 +129,13 @@ pkill -f "python app.py"
 
 ### Ringg-1.5B (Two-Stage)
 - **Stage-1 Baseline**: 
-  - Disposition F1: 0.85
-  - Payment Disposition F1: 0.82
+  - Disposition Accuracy: **43.04%** (Improvement from ~29%)
+  - Payment Disposition Accuracy: **30.96%** (Improvement from ~9%)
   - Training: 19,867 samples
-- **Stage-2 Data**: 
-  - 6,816 samples (34.3% of Stage-1 data)
-  - Fields: reason_for_not_paying (98.8% coverage), ptp_amount (9.8%), ptp_date (9.5%), followup_date (30.2%), remarks (98.4%)
+- **Stage-2 Extraction**: 
+  - Status: **Trained & Verified**
+  - Training: 1,475 balanced samples
+  - Fields: reason_for_not_paying, ptp_amount, ptp_date, followup_date, remarks
 - **Use case**: Resource-constrained environments, faster inference
 
 ---

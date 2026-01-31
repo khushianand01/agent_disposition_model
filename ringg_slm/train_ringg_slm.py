@@ -19,6 +19,7 @@ parser.add_argument("--data_path", type=str, default="../data/splits/train_v11_s
 parser.add_argument("--val_data_path", type=str, default="../data/splits/val_v11_s1.json")
 parser.add_argument("--output_dir", type=str, default="../outputs/ringg_slm_stage1")
 parser.add_argument("--num_train_epochs", type=int, default=3)
+parser.add_argument("--resume_from_checkpoint", type=str, default=None, help="Path to checkpoint to resume from")
 args_cli = parser.parse_args()
 
 MODEL_NAME = "RinggAI/Transcript-Analytics-SLM1.5b"
@@ -113,7 +114,7 @@ trainer = SFTTrainer(
 # RUN
 # =========================
 print("Starting training...")
-trainer.train()
+trainer.train(resume_from_checkpoint=args_cli.resume_from_checkpoint)
 
 print(f"Saving to {args_cli.output_dir}...")
 model.save_pretrained(args_cli.output_dir)
