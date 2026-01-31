@@ -48,63 +48,46 @@ DO NOT return 'PAID'. Use 'CLAIMING_PAYMENT_IS_COMPLETED'.
 s2_prompt = """### Instruction:
 Extract structured payment-related information from the call transcript. 
 
-CRITICAL RULES:
-1. Extraction Condition: Extract "ptp_amount" and "payment_date" IF AND ONLY IF the customer mentions them in the context of a FUTURE promise (e.g., "dunga", "karunga").
-
-2. Specific Fields:
-   - "reason_for_not_paying": Select the most appropriate enum from the following list based on the transcript:
+1. Specific Fields:
+   - "reason_for_not_paying": Select the most appropriate enum from the following list:
      [BUSINESS_CLOSED, BUSINESS_LOSS, CLAIMING_FRAUD, CLAIMING_PAYMENT_IS_COMPLETED, CUSTOMER_EXPIRED, CUSTOMER_NOT_TELLING_REASON, CUSTOMER_PLANS_TO_VISIT_BRANCH, DEATH_IN_FAMILY, FUND_ISSUE, GRIEVANCE_APP_ISSUE, GRIEVANCE_CALLER_MISCONDUCT, GRIEVANCE_FRAUD, GRIEVANCE_LOAN_AMOUNT_DISPUTE, JOB_CHANGED_WAITING_FOR_SALARY, LOAN_CLOSURE_MISCOMMUNICATION, LOAN_TAKEN_BY_KNOWN_PARTY, LOST_JOB, MEDICAL_ISSUE, MULTIPLE_LOANS, OTHER_PERSON_TAKEN, OTHER_REASONS, PENALTY_ISSUE, SERVICE_ISSUE, TRUST_ISSUE]
-     Examples: "job chali gayi" -> LOST_JOB, "paise nahi hai" -> FUND_ISSUE, "shop band ho gayi" -> BUSINESS_CLOSED, "hospital mein hoon" -> MEDICAL_ISSUE.
      Default to CUSTOMER_NOT_TELLING_REASON if no specific reason is given.
    - "ptp_amount": The exact amount (number) promised for future payment.
    - "ptp_date": The future date promised (strictly YYYY-MM-DD format).
-   - "remarks": A very short summary of what the customer said (e.g., "will pay 5k on Friday").
-3. Extraction Priorities:
-   - If any mention of a future payment is made, extract the amount and calculate the date.
-   - If a reason for current non-payment is mentioned, map it to the closest enum.
-4. Correctness: DO NOT guess or hallucinate. Use null for missing fields. Ensure all field names match exactly.
+   - "remarks": A short summary of the outcome.
 
+2. Extraction Priorities:
+   - PRIORITY: If multiple amounts are mentioned, extract the one promised for the FUTURE (e.g., "baaki 2500 dunga" -> 2500).
+   - REASONING: If the customer mentions job loss, financial crisis, or app issues, map it to the corresponding enum (e.g., "job chali gayi" -> LOST_JOB).
+   - TENSE: Extract "ptp_amount" and "ptp_date" IF AND ONLY IF the customer mentions them in a FUTURE context (e.g., "dunga", "karunga").
 
-
-
-DATE LOGIC:
-- You are provided a "current_date". Use it to calculate "ptp_date".
-- "Aaj" = current_date
-- "Kal" = current_date + 1 day
-- "Parso" = current_date + 2 days
-- "5 tareekh" = current_date's month + day 5
-- "Next week" = current_date + 7 days
-- Return dates strictly in YYYY-MM-DD format.
+3. Date Logic:
+   - Use provided "current_date" to calculate "ptp_date".
+   - "Aaj" = current_date, "Kal" = +1 day, "Parso" = +2 days, "Next week" = +7 days.
+   - Return dates strictly in YYYY-MM-DD format.
 
 REQUIRED OUTPUT FORMAT (ALL 5 FIELDS MUST BE PRESENT):
 {{
-  "reason_for_not_paying": "enum_value or null",
+  "reason_for_not_paying": "enum_value",
   "ptp_amount": number or null,
   "ptp_date": "YYYY-MM-DD" or null,
   "followup_date": "YYYY-MM-DD" or null,
   "remarks": "brief note" or null
 }}
-3. Extraction Priorities:
-   - PRIORITY: If multiple amounts are mentioned, extract the one promised for the FUTURE (e.g., "baaki 2500 dunga" -> 2500).
-   - REASONING: If the customer mentions job loss, financial crisis, or app issues, map it to the corresponding enum (e.g., "job chali gayi" -> LOST_JOB).
-4. Correctness: Ensure all field names (payment_date, reason_for_not_paying, etc.) are present in the final JSON.
 
 ### Examples:
-Transcript: "Agent: EMI pending hai. Borrower: Job chali gayi hai meri is month, payment nahi de paunga."
+Transcript: "Agent: EMI delay kyu ho rahi hai? Borrower: Job chali gayi hai meri is month, payment nahi de paunga."
 Response: {{"reason_for_not_paying": "LOST_JOB", "ptp_amount": null, "ptp_date": null, "followup_date": null, "remarks": "customer lost his job and cannot pay this month"}}
 
-Transcript: "Agent: Hello. Borrower: Haan. Agent: Payment kab karoge? Borrower: Kal 4000 pay kar dunga."
-Response: {{"reason_for_not_paying": null, "ptp_amount": 4000, "ptp_date": "2026-02-01", "followup_date": "2026-02-02", "remarks": "customer promised to pay 4k tomorrow"}}
-
-
-Input: {{"transcript": "Agent: Hello. Borrower: Haan. Agent: Payment kab karoge? Borrower: Kal 4000 pay kar dunga.", "disposition": "ANSWERED", "payment_disposition": "PTP"}}
-Response: {{"reason_for_not_paying": null, "ptp_amount": 4000, "ptp_date": "2026-02-01", "followup_date": "2026-02-02", "remarks": "customer promised to pay 4k tomorrow"}}
+Transcript: "Agent: Payment kab karoge? Borrower: Kal 4000 pay kar dunga."
+Response: {{"reason_for_not_paying": "CUSTOMER_NOT_TELLING_REASON", "ptp_amount": 4000, "ptp_date": "2026-02-01", "followup_date": "2026-02-02", "remarks": "customer promised 4k tomorrow"}}
 
 ### Input:
 {}
 
 ### Response:
 {}"""
+
 
 
 class RinggPipeline:
@@ -198,32 +181,35 @@ class RinggPipeline:
 
         
         # Fix date using comprehensive date mapper
-        # Check both payment_date and ptp_date just in case
-        date_key = "payment_date" if "payment_date" in s2_json else "ptp_date"
+        # IMPORTANT: Run the mapper UNCONDITIONALLY to catch dates the model misses
+        extracted_date = s2_json.get("ptp_date") or s2_json.get("payment_date")
         
-        if s2_json and s2_json.get(date_key):
-            import sys
-            import os
-            
-            # Force reload to get latest code
-            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            
-            # Clear cached module
-            if 'utils.date_mapper' in sys.modules:
-                del sys.modules['utils.date_mapper']
-            
-            from utils.date_mapper import fix_ptp_date
-            
-            original_date = s2_json[date_key]
-            fixed_date = fix_ptp_date(
-                s2_json[date_key], 
-                current_date_str, 
-                transcript
-            )
-            print(f"[DEBUG] Date mapping: {original_date} -> {fixed_date}")
+        import sys
+        import os
+        
+        # Force reload to get latest code
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if 'utils.date_mapper' in sys.modules:
+            del sys.modules['utils.date_mapper']
+        from utils.date_mapper import fix_ptp_date
+        
+        fixed_date = fix_ptp_date(
+            extracted_date, 
+            current_date_str, 
+            transcript
+        )
+        
+        if fixed_date:
+            print(f"[DEBUG] Date mapping success: {extracted_date} -> {fixed_date}")
             s2_json["payment_date"] = fixed_date
+            # Clean up internal key
             if "ptp_date" in s2_json:
-                del s2_json["ptp_date"] # Standardize to payment_date
+                del s2_json["ptp_date"]
+        else:
+            # If no date found anywhere, ensure payment_date is null
+            s2_json["payment_date"] = None
+            if "ptp_date" in s2_json:
+                del s2_json["ptp_date"]
 
 
         # --- Smart Post-Processing Logic ---

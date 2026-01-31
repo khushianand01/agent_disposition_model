@@ -134,11 +134,12 @@ def map_hindi_date_to_absolute(text, current_date_str):
                     pass
 
     
-    # Week references
-    if "next week" in text_lower or "agle hafte" in text_lower:
+    # Week references (e.g., "next week", "agle hafte", "ek hafte baad")
+    if re.search(r'\b(next week|agle? hafte?|ek hafte|1 hafte)\b', text_lower):
         return (current_date + timedelta(days=7)).strftime("%Y-%m-%d")
     
-    if "next month" in text_lower or "agle mahine" in text_lower:
+    # Month references (e.g., "next month", "agle mahine")
+    if re.search(r'\b(next month|agle? mahine?|1 mahine)\b', text_lower):
         return (current_date + relativedelta(months=1)).strftime("%Y-%m-%d")
     
     return None
