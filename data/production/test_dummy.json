@@ -1,0 +1,10 @@
+[
+    {
+        "input": "agent: hello am i speaking to ramesh? borrower: yes speaking. agent: sir your payment of 5000 is due. borrower: i will pay tomorrow.",
+        "output": "{\"disposition\": \"ANSWERED\", \"payment_disposition\": \"PTP\", \"ptp_amount\": \"5000\", \"ptp_date\": \"tomorrow\", \"remarks\": \"customer promised to pay tomorrow\"}"
+    },
+    {
+        "input": "agent: hello ramesh? borrower: wrong number.",
+        "output": "{\"disposition\": \"WRONG_NUMBER\", \"payment_disposition\": \"None\", \"remarks\": \"wrong number\"}"
+    }
+]
