@@ -1,0 +1,11 @@
+Precision = "The Trust Score"
+Question: "When the model says 'PTP', is it actually a PTP?"
+High Precision: Means almost Zero False Alarms.
+Low Precision: Means it cries "Wolf!" often.
+Example: Our 100% Precision on "Wish to Foreclosure" means you can blindly trust it.
+Recall = "The Coverage Score"
+Question: "Out of all actual payers, how many did the model find?"
+High Recall: Means you Don't Miss Opportunities.
+Low Recall: Means you are leaving money on the table (missing calls).
+Example: Our 85% Recall on "Settlement" ensures you catch almost every deal.
+F1 Score: Just the average of the two. (Technical metric, less useful for business).

@@ -1,0 +1,78 @@
+🔍 Analyzing detailed results from /home/ubuntu/disposition_model/outputs/qwen_3b_production_best/temp_results.jsonl...
+
+📊 Total Samples Analyzed: 2986
+✅ JSON Validity Rate:      97.29% (81 errors)
+
+✅ Disposition Accuracy (Strict): 66.30%
+
+📊 Disposition Classification Report:
+                               precision    recall  f1-score   support
+
+   AGENT_BUSY_ON_ANOTHER_CALL       0.00      0.00      0.00        40
+                     ANSWERED       0.81      0.88      0.84      1686
+    ANSWERED_BY_FAMILY_MEMBER       0.26      0.68      0.37        90
+        ANSWERED_DISCONNECTED       0.20      0.17      0.18       103
+         ANSWERED_VOICE_ISSUE       0.18      0.38      0.24       103
+              AUTOMATED_VOICE       0.65      0.65      0.65       106
+              CALL_BACK_LATER       0.00      0.00      0.00        99
+CALL_DISCONNECTED_BY_CUSTOMER       0.08      0.01      0.02        97
+             CUSTOMER_ABUSIVE       0.47      0.28      0.35        54
+              CUSTOMER_PICKED       0.00      0.00      0.00         1
+       DO_NOT_KNOW_THE_PERSON       0.94      0.29      0.44        55
+               FORWARDED_CALL       0.00      0.00      0.00        28
+        GAVE_ALTERNATE_NUMBER       0.00      0.00      0.00        35
+             LANGUAGE_BARRIER       0.68      0.63      0.65       105
+       NOT_IN_CONTACT_ANYMORE       0.00      0.00      0.00         2
+                       OTHERS       0.00      0.00      0.00         9
+               OUT_OF_NETWORK       1.00      1.00      1.00        34
+                      RINGING       0.00      0.00      0.00        21
+                SILENCE_ISSUE       0.54      0.36      0.43        91
+                 SWITCHED_OFF       1.00      0.42      0.59        36
+              WILL_ASK_TO_PAY       0.00      0.00      0.00         6
+                 WRONG_NUMBER       0.55      0.69      0.61       104
+
+                     accuracy                           0.66      2905
+                    macro avg       0.33      0.29      0.29      2905
+                 weighted avg       0.63      0.66      0.63      2905
+
+
+📉 Top 10 Confused Pairs (Gold -> Pred):
+   85x: ANSWERED -> ANSWERED_BY_FAMILY_MEMBER
+   70x: CALL_BACK_LATER -> ANSWERED
+   52x: ANSWERED_DISCONNECTED -> ANSWERED
+   48x: CALL_DISCONNECTED_BY_CUSTOMER -> ANSWERED
+   42x: ANSWERED -> ANSWERED_VOICE_ISSUE
+   39x: ANSWERED -> ANSWERED_DISCONNECTED
+   37x: ANSWERED_VOICE_ISSUE -> ANSWERED
+   35x: DO_NOT_KNOW_THE_PERSON -> WRONG_NUMBER
+   35x: SILENCE_ISSUE -> ANSWERED_VOICE_ISSUE
+   27x: CUSTOMER_ABUSIVE -> ANSWERED
+
+💰 Payment Accuracy (Strict):     56.42%
+
+📊 Payment Classification Report:
+                                 precision    recall  f1-score   support
+
+                  DENIED_TO_PAY       0.27      0.17      0.21       237
+          NO_PAYMENT_COMMITMENT       0.15      0.25      0.19       253
+                 NO_PROOF_GIVEN       0.34      0.49      0.40       234
+                           None       0.81      0.70      0.75      1242
+                           PAID       0.62      0.67      0.64       135
+                PARTIAL_PAYMENT       0.97      0.82      0.89        89
+                            PTP       0.40      0.57      0.47       272
+                     SETTLEMENT       0.55      0.86      0.67       134
+WANTS_TO_RENEGOTIATE_LOAN_TERMS       1.00      0.40      0.57       120
+               WANT_FORECLOSURE       1.00      0.49      0.66        95
+           WILL_PAY_AFTER_VISIT       1.00      0.24      0.39        94
+
+                       accuracy                           0.56      2905
+                      macro avg       0.65      0.51      0.53      2905
+                   weighted avg       0.64      0.56      0.58      2905
+
+
+📉 Top 5 Payment Errors:
+   147x: None -> NO_PAYMENT_COMMITMENT
+   94x: None -> PTP
+   67x: DENIED_TO_PAY -> NO_PROOF_GIVEN
+   66x: NO_PAYMENT_COMMITMENT -> None
+   66x: None -> NO_PROOF_GIVEN

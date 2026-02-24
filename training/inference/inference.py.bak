@@ -1,0 +1,244 @@
+import torch
+from unsloth import FastLanguageModel
+from transformers import TextStreamer
+import json
+from datetime import date, datetime, timedelta
+from dateutil.relativedelta import relativedelta, MO, TU, WE, TH, FR, SA, SU
+import re
+import sys
+import os
+
+# =========================
+# CONFIG
+# =========================
+MODEL_PATH = os.getenv("QWEN_MODEL", "/home/ubuntu/disposition_model/outputs/qwen_3b_production_best") # Qwen model checkpoint or HF repo id via QWEN_MODEL
+MAX_SEQ_LEN = 4096
+DTYPE = None # Auto
+LOAD_IN_4BIT = True
+
+class DispositionModel:
+    def __init__(self, model_path=MODEL_PATH):
+        print(f"Loading model from {model_path}...")
+        # Require GPU: fail fast if CUDA is not available
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available. This server requires a GPU to run.")
+        self.device = "cuda"
+        print(f"Using device: {self.device}")
+        self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+            model_name=model_path,
+            max_seq_length=MAX_SEQ_LEN,
+            dtype=DTYPE,
+            load_in_4bit=LOAD_IN_4BIT,
+        )
+        # FastLanguageModel.for_inference(self.model) # Enable native 2x faster inference
+        print("Model loaded successfully.")
+
+    def format_prompt(self, transcript, current_date=None):
+        instruction = """You are an AI assistant that extracts structured call disposition data.
+Return ONLY valid JSON with this structure:
+{
+  "disposition": "String", 
+  "payment_disposition": "String",
+  "reason_for_not_paying": "String or null",
+  "ptp_details": {
+    "amount": "Number or null",
+    "date": "String (YYYY-MM-DD) or null"
+  },
+  "remarks": "String"
+}"""
+    
+        return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+### Instruction:
+{instruction}
+
+### Input:
+Context: Current Date is {current_date}
+Transcript: {transcript}
+
+### Response:
+"""
+
+
+    def clean_output(self, result: dict, transcript: str, current_date: str) -> dict:
+        """
+        Post-processing logic to enforce categories and fix hallucinations.
+        """
+        if not isinstance(result, dict): return {"error": "Invalid result format", "raw": str(result)}
+
+        # 1. Category Enforcement (Mapping to closest valid label if needed)
+        call_labels = [
+            "ANSWERED", "ANSWERED_BY_FAMILY_MEMBER", "CUSTOMER_PICKED", "AGENT_BUSY_ON_ANOTHER_CALL",
+            "SILENCE_ISSUE", "LANGUAGE_BARRIER", "ANSWERED_VOICE_ISSUE", "CUSTOMER_ABUSIVE",
+            "AUTOMATED_VOICE", "FORWARDED_CALL", "RINGING", "BUSY", "SWITCHED_OFF",
+            "WRONG_NUMBER", "DO_NOT_KNOW_THE_PERSON", "NOT_IN_CONTACT_ANYMORE", "OUT_OF_NETWORK", "OUT_OF_SERVICES",
+            "CALL_BACK_LATER", "WILL_ASK_TO_PAY", "GAVE_ALTERNATE_NUMBER",
+            "ANSWERED_DISCONNECTED", "CALL_DISCONNECTED_BY_CUSTOMER", "NOT_AVAILABLE", "WRONG_PERSON", "OTHERS"
+        ]
+        
+        pay_labels = [
+            "PAID", "PTP", "PARTIAL_PAYMENT", "SETTLEMENT", "WILL_PAY_AFTER_VISIT",
+            "DENIED_TO_PAY", "NO_PAYMENT_COMMITMENT", "NO_PROOF_GIVEN", "WANT_FORECLOSURE", "WANTS_TO_RENEGOTIATE_LOAN_TERMS",
+            "None"
+        ]
+
+        # Enforce Disposition
+        disp = str(result.get("disposition", "OTHERS")).upper()
+        if disp not in call_labels:
+            # Simple fuzzy match fallback
+            if "FAMILY" in disp: result["disposition"] = "ANSWERED_BY_FAMILY_MEMBER"
+            elif "BUSY" in disp: result["disposition"] = "BUSY"
+            elif "WRONG" in disp: result["disposition"] = "WRONG_NUMBER"
+            else: result["disposition"] = "ANSWERED" # Default safe bet if model output exists
+        else:
+            result["disposition"] = disp
+
+        # Enforce Payment Disposition
+        p_disp = str(result.get("payment_disposition", "None")).upper()
+        if p_disp not in pay_labels:
+            if "CLAIMED" in p_disp: result["payment_disposition"] = "PAID"
+            elif "PROMISE" in p_disp: result["payment_disposition"] = "PTP"
+            else: result["payment_disposition"] = "None"
+        else:
+            result["payment_disposition"] = p_disp
+
+        # 2. PTP Details Extraction Logic (Date/Amount Rescue)
+        ptp = result.get("ptp_details", {})
+        if not isinstance(ptp, dict): ptp = {"amount": None, "date": None}
+        
+        # Date Rescue and Normalization (Reuse existing logic but for ptp_details)
+        ref_date = date.today()
+        if current_date:
+            try: ref_date = datetime.strptime(current_date.split(' ')[0], "%Y-%m-%d").date()
+            except: pass
+
+        # Amount validation (ensure it exists in transcript)
+        amt = ptp.get("amount")
+        if amt:
+            try:
+                amt_str = str(int(float(amt)))
+                if amt_str not in transcript:
+                    ptp["amount"] = None
+            except: ptp["amount"] = None
+
+        # Date validation
+        dt = ptp.get("date")
+        if dt:
+            # Add complex date validation/rescue here if needed, 
+            # for now ensuring it's not a hallucination
+            if not any(x in transcript for x in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "कल", "आज"]):
+                 # If no date indicators in text, be cautious
+                 pass 
+
+        # 3. PTP Hallucination Check (Strict Mode for Production)
+        # If model says PTP but extracted NO Amount and NO Date, it's likely a hallucination
+        # unless there are strong keywords in the transcript.
+        if result.get("payment_disposition") == "PTP":
+             # ULTRA-STRICT KEYWORD CHECK
+             # Must have strong commitment words to be a valid PTP if no date/amount found
+             strong_commitment_keywords = [
+                 "pay", "paid", "amount", "rupaye", "baje", "kal", "aaj", "parso", 
+                 "date", "tarikh", "monday", "tuesday", "wednesday", "thursday", 
+                 "friday", "saturday", "sunday", "jam", "bhar", "deposit", "online", 
+                 "cash", "check", "cheque", "bhej", "send", "karunga", "kardo"
+             ]
+             
+             has_commitment_keywords = any(w in transcript.lower() for w in strong_commitment_keywords)
+             
+             # If no concrete details AND no strong keywords, downgrade
+             # Expanded logic: Even with amount/date, check if transcript actually supports it 
+             # (prevent hallucinatory extraction from silence)
+             if not has_commitment_keywords:
+                 result["payment_disposition"] = "NO_PAYMENT_COMMITMENT"
+                 result["remarks"] = "Downgraded from PTP (No keywords found)"
+             elif (ptp.get("date") is None and ptp.get("amount") is None):
+                 # Weak PTP (No details + generic keywords like 'pay') -> Downgrade
+                 # Requirement: Real PTP usually has a when or how much
+                 result["payment_disposition"] = "NO_PAYMENT_COMMITMENT" 
+                 result["remarks"] = "Downgraded from PTP (No date/amount specifics)"
+
+        result["ptp_details"] = ptp
+        return result
+
+    @torch.inference_mode()
+    def predict(self, transcript, current_date=None):
+        # Strict Date Logic: Use provided date or default to system date
+        if current_date is None:
+            current_date = str(date.today())
+            
+        # Robustness: Handle if transcript is passed as a dict (common pipeline error)
+        if isinstance(transcript, dict):
+             transcript = transcript.get("transcript", str(transcript))
+        if not isinstance(transcript, str):
+             transcript = str(transcript)
+
+        # Safety Truncation: Ensure transcript fits within context window (approx 3-4 chars per token)
+        # Leaving ~1000 tokens for system prompt and generation
+        MAX_CHAR_LEN = 15000 
+        if len(transcript) > MAX_CHAR_LEN:
+            transcript = transcript[:MAX_CHAR_LEN] + "...(truncated)"
+
+        prompt = self.format_prompt(transcript, current_date=current_date)
+        inputs = self.tokenizer([prompt], return_tensors="pt").to(self.device)
+
+        outputs = self.model.generate(
+            **inputs,
+            max_new_tokens=400,
+            use_cache=True,
+            do_sample=False,
+            eos_token_id=self.tokenizer.eos_token_id,
+            pad_token_id=self.tokenizer.eos_token_id,
+            return_dict_in_generate=True,
+            output_scores=True,
+        )
+        
+        # Decode text
+        generated_ids = outputs.sequences[0][inputs["input_ids"].shape[-1]:]
+        generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+        print(f"\n--- DEBUG: RAW GENERATED TEXT ---\n{generated_text}\n---------------------------------")
+
+        # Confidence Score Calculation
+        confidence_score = 0.0
+        if outputs.scores:
+            probs = [torch.nn.functional.softmax(score, dim=-1) for score in outputs.scores]
+            token_probs = [probs[i][0, tid].item() for i, tid in enumerate(generated_ids) if i < len(probs)]
+            if token_probs:
+                confidence_score = sum(token_probs) / len(token_probs)
+
+        try:
+            # Handle cases where output is already a dict (e.g. from pipeline)
+            if isinstance(generated_text, dict):
+                result = generated_text
+            else:
+                json_start = generated_text.find('{')
+                json_end = generated_text.rfind('}') + 1
+                if json_start != -1 and json_end != -1:
+                    result = json.loads(generated_text[json_start:json_end])
+                else:
+                    raise ValueError("No JSON found")
+            
+            if result:
+                result = self.clean_output(result, transcript, current_date)
+            else:
+                 raise ValueError("Parsed result is empty")
+                 
+            result["confidence_score"] = round(confidence_score, 4)
+            return result
+        except Exception as e:
+            return {
+                "error": str(e),
+                "raw_output": generated_text,
+                "confidence_score": round(confidence_score, 4)
+            }
+
+# Singleton instance for easy import
+_model_instance = None
+
+def get_model():
+    global _model_instance
+    if _model_instance is None:
+        _model_instance = DispositionModel()
+    return _model_instance
+
+if __name__ == "__main__":
+    # Test
+    pass

@@ -1,39 +1,47 @@
-# Core
-pandas>=2.1.0
-numpy>=1.26.0
-openpyxl>=3.1.2
-tqdm>=4.66.1
+# Core (pinned to tested versions)
+pandas==2.3.3
+numpy==2.2.6
+openpyxl==3.1.5
+tqdm==4.67.3
 
 # HuggingFace & LLMs
-transformers>=4.39.0
-datasets>=2.18.0
-accelerate>=0.27.0
-sentencepiece>=0.1.99
-protobuf>=4.25.0
+transformers==4.57.6
+datasets==4.3.0
+accelerate==1.12.0
+sentencepiece==0.2.1
+protobuf==6.33.5
 
-# PyTorch
-torch>=2.1.0
+# PyTorch (use CUDA image or CPU build appropriate for your host)
+torch==2.10.0
+torchvision>=0.15.2
 
 # Training / Fine-tuning
-trl>=0.8.1
-peft>=0.10.0
+trl==0.24.0
+peft==0.18.1
 
-# Unsloth (Fast LoRA)
-unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
-xformers
-bitsandbytes
+# Unsloth (Fast LoRA) - installed from GitHub (keeps latest fixes)
+unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git@main
+unsloth_zoo>=2026.2.1
+
+# Optional accelerators
+xformers==0.0.34
+bitsandbytes==0.49.1
 
 # Serving & API
-fastapi>=0.110.0
-uvicorn>=0.27.0
-pydantic>=2.0.0
-python-multipart>=0.0.9
+fastapi==0.129.0
+uvicorn==0.40.0
+pydantic==2.12.5
+python-multipart==0.0.22
 
 # Utilities
-scikit-learn>=1.4.0
-regex>=2023.12.25
-python-dateutil>=2.8.2
-prometheus-fastapi-instrumentator
-seaborn>=0.13.0
-matplotlib>=3.8.0
-ipykernel>=6.29.0
+scikit-learn==1.7.2
+regex==2026.1.15
+python-dateutil==2.9.0.post0
+prometheus-fastapi-instrumentator==7.1.0
+seaborn==0.13.2
+matplotlib==3.10.8
+ipykernel==7.2.0
+
+# Notes:
+# - These versions were validated during setup in this environment (Torch 2.10 / CUDA 12.8).
+# - If you deploy in a different environment, adjust `torch`/`torchvision` to match your CUDA runtime.

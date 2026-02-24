@@ -1,0 +1,14 @@
+1. Agent: "Sir aapka loan EMI overdue hai 5000 rupaye."
+   Customer: "Haan mujhe pata hai. Main parso tak arrange karke bhej dunga."
+
+2. Agent: "Madam credit card ka 12000 pending hai."
+   Customer: "Aaj sham ko 5000 transfer kar deti hoon. Baaki next week dekhenge."
+
+3. Agent: "Aapne bola tha 10 tareekh ko payment karenge."
+   Customer: "Bhai thoda time do, 15 tareekh ko salary aayegi tabhi pura 8000 dunga."
+
+4. Agent: "Hello, bank se bol raha hoon."
+   Customer: "Abhi main meeting mein hoon, baad mein call kariye."
+
+5. Agent: "Sir payment kab aayega?"
+   Customer: "Main online link se 3000 rs bhej raha hoon abhi."

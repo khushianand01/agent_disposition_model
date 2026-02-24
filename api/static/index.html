@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disposition Extraction API</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* CredResolve Purple Theme Colors */
+            --primary: #6d28d9;
+            /* Deep Purple */
+            --primary-hover: #5b21b6;
+            /* Darker Purple */
+            --secondary: #8b5cf6;
+            /* Light Violet */
+            --secondary-hover: #7c3aed;
+            --bg: #f5f3ff;
+            /* Very light purple tint */
+            --card-bg: #ffffff;
+            --text-main: #2e1065;
+            /* Dark purple text */
+            --text-muted: #6b7280;
+            --border: #ddd6fe;
+            --focus-ring: rgba(109, 40, 217, 0.2);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(#d8b4fe 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--text-main);
+            margin: 0;
+            padding: 3rem 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .main-wrapper {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .container {
+            width: 100%;
+            background: var(--card-bg);
+            padding: 3rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(109, 40, 217, 0.08), 0 8px 10px -6px rgba(109, 40, 217, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: stretch;
+        }
+
+        @media (max-width: 768px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .header img {
+            height: 50px;
+            object-fit: contain;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.025em;
+            color: #111827;
+        }
+
+        .header p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 1rem;
+            line-height: 1.5;
+            resize: vertical;
+            min-height: 140px;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+            background-color: #f8fafc;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            background-color: #ffffff;
+            box-shadow: 0 0 0 4px var(--focus-ring);
+        }
+
+        button {
+            color: white;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1);
+        }
+
+        #predict-btn {
+            background-color: var(--primary);
+        }
+
+        #predict-btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px -1px rgba(37, 99, 235, 0.2);
+        }
+
+        #upload-btn {
+            background-color: var(--secondary);
+            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.1);
+        }
+
+        #upload-btn:hover {
+            background-color: var(--secondary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px -1px rgba(16, 185, 129, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .result-container {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-container h2 {
+            font-size: 1.125rem;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 1.25rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--text-muted);
+            margin-top: 1rem;
+            display: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 2rem 0;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .divider span {
+            padding: 0 1rem;
+        }
+
+        .file-upload-box {
+            background: #f8fafc;
+            border: 2px dashed var(--border);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="/static/credresolve_logo.png" alt="Logo" onerror="this.style.display='none'">
+            <h1>Disposition Extraction API</h1>
+        </div>
+
+        <div class="main-wrapper">
+            <div class="grid-layout">
+                <!-- Left Column: Single Predict -->
+                <div class="column-box" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="transcript" style="font-size: 1.05rem; margin-bottom: 0.75rem;">Single Transcript
+                            Extraction</label>
+                        <textarea id="transcript"
+                            placeholder="Paste a single call transcription here to test..."></textarea>
+                    </div>
+
+                    <button id="predict-btn">
+                        <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z">
+                            </path>
+                        </svg>
+                        Extract Disposition
+                    </button>
+
+                    <div class="loading" id="loading-spinner">
+                        <svg style="animation: spin 1s linear infinite; width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 5px;"
+                            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
+                        </svg>
+                        Processing...
+                    </div>
+
+                    <div class="result-container" id="result-box">
+                        <h2>
+                            <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Extraction Result
+                        </h2>
+                        <pre id="result-content"></pre>
+                    </div>
+                </div>
+
+                <!-- Right Column: Batch Processing -->
+                <div class="column-box" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <label style="font-size: 1.05rem; margin-bottom: 0.75rem;">Bulk Processing</label>
+                    <div class="form-group file-upload-box"
+                        style="margin: 0; min-height: 140px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                        <svg style="width: 40px; height: 40px; color: var(--secondary); margin-bottom: 1rem;"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                            </path>
+                        </svg>
+                        <label for="batch-file"
+                            style="margin-bottom: 1rem; font-size: 1rem; color: var(--text-main);">Upload File
+                            (must have a 'transcript' column)</label>
+                        <input type="file" id="batch-file" accept=".csv,.json,.xlsx,.xls"
+                            style="width: 100%; max-width: 300px; padding: 0.5rem; border: 1px dashed var(--border); border-radius: 8px; background: white; cursor: pointer;">
+                    </div>
+
+                    <div
+                        style="display: flex; gap: 15px; align-items: center; justify-content: space-between; background: white; padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                        <label for="output-format" style="margin-bottom: 0;">Output Format:</label>
+                        <select id="output-format"
+                            style="padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid var(--border); font-family: inherit; font-size: 0.95rem; font-weight: 500; outline: none; transition: border-color 0.2s; background: #f8fafc; color: var(--text-main); cursor: pointer;">
+                            <option value="csv">CSV Document</option>
+                            <option value="xlsx">Excel</option>
+                            <option value="json">JSON</option>
+                        </select>
+                    </div>
+
+                    <button id="upload-btn">
+                        <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                        </svg>
+                        Upload & Process Batch
+                    </button>
+
+                    <div class="loading" id="upload-spinner" style="color: var(--secondary); margin-top: 1rem;">
+                        <svg style="animation: spin 1s linear infinite; width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 5px;"
+                            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
+                        </svg>
+                        Processing batch... Please wait.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const predictBtn = document.getElementById('predict-btn');
+        const transcriptInput = document.getElementById('transcript');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultBox = document.getElementById('result-box');
+        const resultContent = document.getElementById('result-content');
+
+        const uploadBtn = document.getElementById('upload-btn');
+        const batchFileInput = document.getElementById('batch-file');
+        const outputFormatSelect = document.getElementById('output-format');
+        const uploadSpinner = document.getElementById('upload-spinner');
+
+        // Single transcript prediction
+        predictBtn.addEventListener('click', async () => {
+            const transcript = transcriptInput.value.trim();
+            if (!transcript) {
+                alert('Please enter a transcript.');
+                return;
+            }
+
+            loadingSpinner.style.display = 'block';
+            resultBox.style.display = 'none';
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ transcript })
+                });
+
+                const data = await response.json();
+                resultContent.textContent = JSON.stringify(data, null, 2);
+                resultBox.style.display = 'block';
+            } catch (error) {
+                alert('Error connecting to API.');
+                console.error(error);
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        });
+
+        // Batch upload processing
+        uploadBtn.addEventListener('click', async () => {
+            if (!batchFileInput.files || batchFileInput.files.length === 0) {
+                alert('Please select a file to upload.');
+                return;
+            }
+
+            const file = batchFileInput.files[0];
+            const outputFormat = outputFormatSelect.value;
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('output_format', outputFormat);
+
+            uploadSpinner.style.display = 'block';
+            uploadBtn.disabled = true;
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Upload failed');
+                }
+
+                // Get the processed file blob and force download
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+
+                // Try to extract filename from headers if possible, else generate one
+                let filename = `predictions.${outputFormat}`;
+                const disposition = response.headers.get('Content-Disposition');
+                if (disposition && disposition.indexOf('attachment') !== -1) {
+                    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                    const matches = filenameRegex.exec(disposition);
+                    if (matches != null && matches[1]) {
+                        filename = matches[1].replace(/['"]/g, '');
+                    }
+                }
+
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                alert('Batch processing complete! File downloaded.');
+
+            } catch (error) {
+                console.error(error);
+                alert('Error processing batch file: ' + error.message);
+            } finally {
+                uploadSpinner.style.display = 'none';
+                uploadBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

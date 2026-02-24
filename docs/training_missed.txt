@@ -1,0 +1,21 @@
+# Booster Training Gaps & Label Expansions
+# Target: 0.90+ Human-Level Accuracy
+
+1. MEDICAL_ISSUE
+   - [NEW LABEL] Customer cites family or personal medical expenses.
+   - Currently getting lost in OTHER_REASONS.
+
+2. JOB_LOSS -> JOB_CHANGED_WAITING_FOR_SALARY
+   - [MAPPING] Map cases of "Job Loss" or "Unemployment" to this category.
+   - Ensures the AI recognizes this as a salary-delay issue.
+
+3. OUT_OF_STATION
+   - [NEW LABEL] Customer is in village, traveling, or at a funeral.
+   - Business Logic: Call back after 2-3 days.
+
+4. LINK_NOT_RECEIVED
+   - [NEW LABEL] Specific sub-category of TECHNICAL_ISSUE.
+   - Business Logic: Re-send payment link immediately.
+
+5. PTP RECALL BOOSTER
+   - [OVERSAMPLE] Find Hinglish promises like "dekhunga", "kal check karo" and label as PTP.
