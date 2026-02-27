@@ -5,10 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/disposition_model
-Environment="PATH=/home/ubuntu/disposition_model/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+WorkingDirectory=/home/ubuntu/agent_disposition_model
+Environment="PATH=/home/ubuntu/agent_disposition_model/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-ExecStart=/home/ubuntu/disposition_model/venv/bin/python api/app.py
+ExecStart=/home/ubuntu/agent_disposition_model/venv/bin/python api/app.py
 
 Restart=always
 RestartSec=5

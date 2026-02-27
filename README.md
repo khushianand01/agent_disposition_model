@@ -1,4 +1,4 @@
-# 📞 Disposition Extraction API v7.2 (Production Ready)
+# 📞 Agent Disposition Model v7.2 (Production Ready)
 
 A high-performance multilingual AI pipeline for extracting structured **Call Dispositions**, **Payment Intent**, **Reason for Not Paying**, and **Performance Entities (Date/Amount)** from conversational transcripts.
 
@@ -8,7 +8,7 @@ A high-performance multilingual AI pipeline for extracting structured **Call Dis
 
 ---
 
-## �️ Prerequisites & Hardware
+## 🛠️ Prerequisites & Hardware
 To run this model with acceptable latency, the following is required:
 
 *   **GPU:** Minimum **15GB VRAM** (e.g., NVIDIA Tesla T4, A10G, or A100).
@@ -58,46 +58,42 @@ sudo systemctl start disposition_api
 
 ---
 
-## 📊 Performance Benchmarks (Tesla T4)
-Measured on the latest codebase with multithreaded stress testing:
+## � Project Structure
 
+```
+agent_disposition_model/
+├── api/                            # 🚀 Production Service
+│   ├── app.py                      #    FastAPI Server (Port 8005)
+│   ├── inference.py                #    Unsloth Inference Engine
+│   └── static/index.html           #    Web UI
+├── data/                           # 📊 Datasets (Optional)
+├── docs/                           # 📑 Reports & Notes
+├── eval_datasets/                  # 🧪 Test Sets
+├── logs/                           # 📝 API & Eval Logs
+├── requirements.txt                # Python dependencies
+├── disposition_api.service         # Systemd unit
+└── README.md                       # Project documentation
+```
+
+---
+
+## 📊 Performance Benchmarks (Tesla T4)
 | User Scenario | Response Time (Median) | Reliability |
 | :--- | :--- | :--- |
 | **1 Single User** | **~4.5 seconds** | 100% |
 | **3 Concurrent Users** | ~12.5 seconds | 100% |
 | **5 Concurrent Users** | ~22.2 seconds | 100% |
 
-**Concurrency Logic**: The system uses a `threading.Lock()` to prevent GPU memory crashes. Parallel requests are queued and processed sequentially to ensure stability.
+---
+
+## 🌐 Intent Extraction Logic
+- **Job Loss**: Maps intents to `JOB_CHANGED_WAITING_FOR_SALARY`.
+- **Date Handling**: Resolves relative terms (*kal, parso*) into standard `YYYY-MM-DD` using the server's real-time clock.
+- **Multilingual**: High accuracy across Hindi, Bengali, English, Marathi, Tamil, Telugu, and more.
 
 ---
 
-## 🌐 Multilingual & Intent Logic
-The model supports high-accuracy extraction for:
-- **Languages**: Hindi, English, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, Malayalam, Punjabi.
-- **Job Loss Recovery**: Automatically maps "I lost my job" or "no work" to `JOB_CHANGED_WAITING_FOR_SALARY`.
-- **Dynamic Dates**: Uses the server's real-time date to resolve relative terms like *"parso"* (day after tomorrow) into valid `YYYY-MM-DD` strings.
-
----
-
-## 🔍 API Usage
-
-### Extraction Endpoint
-```bash
-curl -X POST http://localhost:8005/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "transcript": "Hello, main parso 5000 pay kar dunga.",
-    "current_date": "2026-02-27"
-  }'
-```
-
-### Metrics & Monitoring
-- **Prometheus Metrics**: `http://localhost:8005/metrics`
-- **Health Check**: `http://localhost:8005/health`
-
----
-
-## � Maintainer & Support
+## 📑 Maintainer & Support
 - **Version**: 7.2 (Stable Handover)
 - **Primary Repo**: [agent_disposition_model](https://github.com/khushianand01/agent_disposition_model)
 - **Production Sync**: [disposition_websockets](https://github.com/khushianand308/disposition_websockets)
