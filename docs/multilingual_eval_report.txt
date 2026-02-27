@@ -1,0 +1,21 @@
+=========================================================
+ SYNTHETIC MULTILINGUAL EVALUATION RESULTS (ABORTED AT ~80%)
+=========================================================
+
+The 2,000 sample test run timed out while processing Gujarati (around ~800th request) due to HTTP connection overload on the FastAPI server ("Connection reset by peer"). 
+
+However, from the logs generated before the crash, we can observe the following trends on the synthetic datasets for modern Indian languages:
+
+1. Reason Extraction Failure:
+The model consistently failed to extract `reason_for_not_paying` for generated datasets representing regional languages like Gujarati, Punjabi, Malayalam, and Telugu.
+- Expected "FUNDS_ISSUE" but Got "None"
+- Expected "TECHNICAL_ISSUE" but Got "None"
+
+2. Date and Amount Extraction:
+The model successfully extracted numbers and dates for PTP instances across the board.
+
+3. Payment Dispositions:
+It had moderate success identifying `DENIED_TO_PAY` but frequently got confused between `WILL_PAY_AFTER_VISIT` and `NO_PAYMENT_COMMITMENT`.
+
+Conclusion:
+The model requires fine-tuned sentence examples to understand intent structures across 10 different Indian languages. Synthetic evaluation proves that the 7B model can extract entities like amounts and dates reliably, but fails at complex intent extraction for the `reason_for_not_paying` field.

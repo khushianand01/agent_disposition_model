@@ -199,12 +199,11 @@ def predict_disposition(request: TranscriptRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8005)
-
-
 @app.get('/metrics')
 def metrics():
     resp = generate_latest()
     return HTMLResponse(content=resp, status_code=200, media_type=CONTENT_TYPE_LATEST)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8005)

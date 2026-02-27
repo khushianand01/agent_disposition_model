@@ -69,19 +69,24 @@ class DispositionModel:
             "You are an AI assistant that extracts structured call disposition data.\n"
             "Fields: disposition, payment_disposition, reason_for_not_paying, ptp_details, remarks, confidence_score.\n"
             "\n"
+            "ALLOWED LABELS:\n"
+            "- payment_disposition: PTP, PARTIAL_PAYMENT, PAID, DENIED_TO_PAY, WILL_PAY_AFTER_VISIT, WANTS_TO_RENEGOTIATE_LOAN_TERMS, SETTLEMENT, NO_PAYMENT_COMMITMENT, WANT_FORECLOSURE, None\n"
+            "- reason_for_not_paying: FUNDS_ISSUE, TECHNICAL_ISSUE, JOB_CHANGED_WAITING_FOR_SALARY, RATE_OF_INTEREST_ISSUES, SALARY_NOT_CREDITED, SERVICE_ISSUE, CUSTOMER_NOT_TELLING_REASON, OTHER_REASONS, None\n"
+            "\n"
             "EXAMPLES:\n"
             "1. Transcript: 'Hello? Haan Mamata ji ke devar bol raha hoon. Wo ghar pe nahi hain.'\n"
             "   Output: {\"disposition\": \"ANSWERED_BY_FAMILY_MEMBER\", \"payment_disposition\": null, \"reason_for_not_paying\": null, \"ptp_details\": {\"amount\": null, \"date\": null}, \"remarks\": \"talked to brother-in-law\", \"confidence_score\": 0.98}\n"
             "\n"
             "2. Transcript: 'Haan main parso 5000 jama kar dunga.' Current Date: 2026-01-27\n"
-            "   Output: {\"disposition\": \"ANSWERED\", \"payment_disposition\": \"PTP\", \"reason_for_not_paying\": \"CUSTOMER_NOT_TELLING_REASON\", \"ptp_details\": {\"amount\": 5000, \"date\": \"2026-01-29\"}, \"remarks\": \"will pay day after tomorrow\", \"confidence_score\": 0.95}\n"
+            "   Output: {\"disposition\": \"ANSWERED\", \"payment_disposition\": \"PTP\", \"reason_for_not_paying\": \"FUNDS_ISSUE\", \"ptp_details\": {\"amount\": 5000, \"date\": \"2026-01-29\"}, \"remarks\": \"will pay day after tomorrow\", \"confidence_score\": 0.95}\n"
             "\n"
-            "3. Transcript: 'Wrong number hai, main nahi jaanta kisi Rahul ko.'\n"
-            "   Output: {\"disposition\": \"WRONG_NUMBER\", \"payment_disposition\": null, \"reason_for_not_paying\": null, \"ptp_details\": {\"amount\": null, \"date\": null}, \"remarks\": \"wrong number\", \"confidence_score\": 0.99}\n"
+            "3. Transcript: 'My job is lost, I cannot pay the EMI.'\n"
+            "   Output: {\"disposition\": \"ANSWERED\", \"payment_disposition\": \"DENIED_TO_PAY\", \"reason_for_not_paying\": \"JOB_CHANGED_WAITING_FOR_SALARY\", \"ptp_details\": {\"amount\": null, \"date\": null}, \"remarks\": \"lost job, refused to pay\", \"confidence_score\": 0.99}\n"
             "\n"
             "RULES:\n"
             "- A 'PTP' (Promise to Pay) occurs when a customer commits to pay a specific amount on a specific date.\n"
             "- If the customer is vague (e.g., 'I will try'), use 'NO_PAYMENT_COMMITMENT'.\n"
+            "- If the customer explicitly refuses or states inability to pay (e.g., job loss, lack of funds), use 'DENIED_TO_PAY' and the appropriate reason ('JOB_CHANGED_WAITING_FOR_SALARY', 'FUNDS_ISSUE').\n"
             "- DATE CALCULATION: 'Kal' = Tomorrow (Today + 1), 'Parso' = Day After Tomorrow (Today + 2). February has 28 days.\n"
             "- confidence_score should be between 0.0 and 1.0 based on how clear the transcript is.\n"
             "- Return ONLY valid JSON."
@@ -169,6 +174,7 @@ Transcript: {transcript}
         if p_date and current_date:
             try:
                 import calendar
+                import re
                 from datetime import datetime, timedelta, date as dt_date
                 c_y, c_m, c_d = map(int, current_date.split('-'))
                 dt_today = dt_date(c_y, c_m, c_d)
@@ -182,20 +188,41 @@ Transcript: {transcript}
                     # If model said Today but transcript said Kal, fix it to Today + 1
                     ptp["date"] = str(dt_today + timedelta(days=1))
 
-                # Structural cleanup (Feb 30 fix)
-                try:
-                    datetime.strptime(str(ptp["date"]), "%Y-%m-%d")
-                except ValueError:
-                    # If invalid date (e.g. Feb 30), Cap it at month end
-                    parts = str(ptp["date"]).split('-')
-                    if len(parts) == 3:
-                        y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
-                        # Get max days in that month/year
-                        _, max_days = calendar.monthrange(y, m)
-                        if d > max_days: 
-                            ptp["date"] = f"{y:04d}-{m:02d}-{max_days:02d}"
+                # Extract YYYY-MM-DD if there's a timestamp
+                raw_date = str(ptp["date"])
+                if "T" in raw_date:
+                    raw_date = raw_date.split("T")[0]
+                elif " " in raw_date:
+                    raw_date = raw_date.split(" ")[0]
+                
+                # Check if it matches YYYY-MM-DD
+                match = re.search(r'\d{4}-\d{2}-\d{2}', raw_date)
+                if match:
+                    raw_date = match.group(0)
+                    ptp["date"] = raw_date
+                else:
+                    ptp["date"] = None
+
+                if ptp["date"]:
+                    # Structural cleanup (Feb 30 fix)
+                    try:
+                        datetime.strptime(str(ptp["date"]), "%Y-%m-%d")
+                    except ValueError:
+                        # If invalid date (e.g. Feb 30), Cap it at month end
+                        parts = str(ptp["date"]).split('-')
+                        if len(parts) == 3:
+                            y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+                            # Get max days in that month/year
+                            _, max_days = calendar.monthrange(y, m)
+                            if d > max_days: 
+                                ptp["date"] = f"{y:04d}-{m:02d}-{max_days:02d}"
             except:
-                pass
+                ptp["date"] = None
+                
+        # Clean up PTP details if it is not a PTP commitment
+        if result.get("payment_disposition") not in ["PTP", "PARTIAL_PAYMENT", "SETTLEMENT"]:
+            ptp["amount"] = None
+            ptp["date"] = None
 
         # 5. Balanced PTP Enforcement (Negative Rules)
         # Rule: Only downgrade if BOTH vague AND lacks specific commitment details

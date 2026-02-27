@@ -1,0 +1,33 @@
+==================================================
+           LIVE API STRESS TEST RESULTS
+            Date: 2026-02-27
+==================================================
+
+SCENARIO 1: Single User Load (1 Worker)
+- Total Requests : 5
+- Success Rate   : 100%
+- Average Time   : 4.44s
+- Max Latency    : 4.96s
+> Conclusion: A single user gets responses in ~4.5 seconds.
+
+SCENARIO 2: Low Concurrency (3 Workers)
+- Total Requests : 10
+- Success Rate   : 100%
+- Average Time   : 11.88s
+- Max Latency    : 13.61s
+> Conclusion: Because the T4 GPU can only process 1 at a time, the 2nd and 3rd users are queued. The 3rd user waits ~13 seconds for their response.
+
+SCENARIO 3: Medium Concurrency (5 Workers)
+- Total Requests : 15
+- Success Rate   : 100%
+- Average Time   : 19.20s
+- Max Latency    : 22.73s
+> Conclusion: The 5th concurrent user waits ~22 seconds for a response.
+
+BOTTLENECK ANALYSIS:
+The API successfully queues and handles requests without crashing (100% success rate on all tests), but the latency scales linearly with concurrent users. 
+1 User = ~4.5s
+3 Users = ~13s
+5 Users = ~22s
+
+To support real-time conversational AI where 5+ users are talking at once, you will need a GPU with more VRAM (like an A100) running a continuous-batching engine like vLLM.
