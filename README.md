@@ -1,4 +1,4 @@
-# 📞 Agent Disposition Model v7.2 (Production Ready)
+# 📞 Agent Disposition Model v2.0 (Production Ready)
 
 A high-performance multilingual AI pipeline for extracting structured **Call Dispositions**, **Payment Intent**, **Reason for Not Paying**, and **Performance Entities (Date/Amount)** from conversational transcripts.
 
