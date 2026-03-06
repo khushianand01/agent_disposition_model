@@ -1,0 +1,41 @@
+nohup: ignoring input
+Starting Comprehensive Multilingual Evaluation with Gold vs Predicted output...
+
+--- Evaluating bengali_test.json ---
+
+--- Evaluating english_test.json ---
+
+--- Evaluating gujarati_test.json ---
+
+--- Evaluating hindi_test.json ---
+
+--- Evaluating kannada_test.json ---
+
+--- Evaluating malayalam_test.json ---
+
+--- Evaluating marathi_test.json ---
+
+--- Evaluating punjabi_test.json ---
+
+--- Evaluating tamil_test.json ---
+
+--- Evaluating telugu_test.json ---
+
+=========================================================
+ COMPLEX MULTILINGUAL EVALUATION RESULTS 
+=========================================================
+
+Language   | Disp   | Pay    | Reason | Amt    | Date   | Overall
+-----------------------------------------------------------------
+Bengali    |    92% |    70% |    18% |   100% |    80% |    72%
+Kannada    |    92% |    64% |     8% |   100% |   100% |    73%
+Tamil      |    69% |    79% |    19% |   100% |   100% |    73%
+Punjabi    |   100% |    66% |    23% |   100% |    81% |    74%
+Telugu     |    92% |    80% |     8% |   100% |   100% |    76%
+Marathi    |    84% |    93% |    10% |   100% |   100% |    77%
+Malayalam  |   100% |    86% |    22% |   100% |   100% |    82%
+English    |   100% |    88% |    20% |   100% |   100% |    82%
+Gujarati   |   100% |    87% |    22% |   100% |   100% |    82%
+Hindi      |   100% |    90% |    19% |   100% |   100% |    82%
+
+Final verbose results saved to gold_vs_predicted_results.json

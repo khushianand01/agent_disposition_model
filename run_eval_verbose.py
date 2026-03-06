@@ -5,25 +5,18 @@ import time
 
 EVAL_DIR = "eval_datasets"
 API_URL = "http://localhost:8005/predict"
+RESULTS_FILE = "gold_vs_predicted_results.json"
 
-def safe_str(val):
-    return str(val).lower().strip() if val is not None else "none"
-
-def evaluate_language(filename):
+def evaluate_language(filename, all_results):
     filepath = os.path.join(EVAL_DIR, filename)
     with open(filepath, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
     total = len(data)
-    correct = {
-        "disposition": 0,
-        "payment": 0,
-        "reason": 0,
-        "amount": 0,
-        "date": 0
-    }
+    correct = {"disposition": 0, "payment": 0, "reason": 0, "amount": 0, "date": 0}
     
     print(f"\n--- Evaluating {filename} ---")
+    lang_name = filename.replace("_test.json", "")
     
     for item in data:
         transcript = item["transcript"]
@@ -35,16 +28,12 @@ def evaluate_language(filename):
             "date": item.get("expected_date")
         }
         
-        payload = {
-            "transcript": transcript,
-            "current_date": "2026-03-05" # Fixing to consistent date for the evaluation suite
-        }
+        payload = {"transcript": transcript, "current_date": "2026-03-05"}
         
         try:
             response = requests.post(API_URL, json=payload, timeout=30)
             if response.status_code == 200:
                 result = response.json()
-                
                 pred_ptp = result.get("ptp_details", {}) or {}
                 
                 pred = {
@@ -58,36 +47,35 @@ def evaluate_language(filename):
                 matches = {
                     "disposition": pred["disp"] == exp["disp"],
                     "payment": pred["pay"] == exp["pay"] or (pred["pay"] in ["PTP", "PARTIAL_PAYMENT"] and exp["pay"] in ["PTP", "PARTIAL_PAYMENT"]),
-                    "reason": pred["reason"] == exp["reason"] or (pred["reason"] == "None" and exp["reason"] is None) or (exp["reason"] == "None" and pred["reason"] is None),
-                    "amount": str(pred["amt"]) == str(exp["amt"]) or (pred["amt"] == "None" and exp["amt"] is None) or (exp["amt"] == "None" and pred["amt"] is None),
-                    # Date is fuzzy in tests unless strict format, so we just check if both are None or both exist for basic validation
-                    "date": (pred["date"] is None) == (exp["date"] is None) or (pred["date"] == "None" and exp["date"] is None) or (exp["date"] == "None" and pred["date"] is None)
+                    "reason": pred["reason"] == exp["reason"] or (pred["reason"] in ["None", None] and exp["reason"] in ["None", None]),
+                    "amount": str(pred["amt"]) == str(exp["amt"]) or (pred["amt"] in ["None", None] and exp["amt"] in ["None", None]),
+                    "date": (pred["date"] is None) == (exp["date"] is None) or (pred["date"] in ["None", None] and exp["date"] in ["None", None])
                 }
                 
                 for k, v in matches.items():
                     if v: correct[k] += 1
                 
+                all_results.append({
+                    "language": lang_name,
+                    "transcript": transcript,
+                    "gold": exp,
+                    "predicted": pred,
+                    "is_exact_match": all(matches.values()),
+                    "remarks": result.get("remarks")
+                })
+                
                 if not all(matches.values()):
-                    print(f"❌ MISMATCH: {transcript[:50]}...")
-                    if not matches['disposition'] or not matches['payment']:
-                        print(f"   Exp: Disp={exp['disp']}, Pay={exp['pay']}")
-                        print(f"   Got: Disp={pred['disp']}, Pay={pred['pay']}")
-                    if not matches['reason']:
-                        print(f"   Exp Reason: {exp['reason']} | Got: {pred['reason']}")
-                    if not matches['amount'] or not matches['date']:
-                        print(f"   Exp PTP: {exp['amt']}, {exp['date']} | Got: {pred['amt']}, {pred['date']}")
+                    pass # We record everything in the json anyway
             else:
-                print(f"⚠️ API Error: {response.status_code} - {response.text}")
+                pass
         except Exception as e:
-            print(f"⚠️ Request Failed: {str(e)}")
+            pass
 
     acc = {k: (v / total) * 100 if total > 0 else 0 for k, v in correct.items()}
-    
-    # Calculate overall by averaging the exact matches
     overall = sum(acc.values()) / len(acc)
     
     return {
-        "language": filename.replace("_test.json", ""),
+        "language": lang_name,
         "total": total,
         "metrics": acc,
         "overall_accuracy": overall
@@ -98,13 +86,14 @@ def main():
         print(f"Directory {EVAL_DIR} not found.")
         return
         
-    files = [f for f in os.listdir(EVAL_DIR) if f.endswith(".json")]
+    files = sorted([f for f in os.listdir(EVAL_DIR) if f.endswith(".json")])
     
-    results = []
-    print("Starting Comprehensive Multilingual Evaluation...")
+    summary_results = []
+    all_results = []
+    print("Starting Comprehensive Multilingual Evaluation with Gold vs Predicted output...")
     for f in files:
-        res = evaluate_language(f)
-        results.append(res)
+        res = evaluate_language(f, all_results)
+        summary_results.append(res)
         
     print("\n=========================================================")
     print(" COMPLEX MULTILINGUAL EVALUATION RESULTS ")
@@ -113,12 +102,17 @@ def main():
     print(f"{'Language':<10} | {'Disp':<6} | {'Pay':<6} | {'Reason':<6} | {'Amt':<6} | {'Date':<6} | {'Overall':<6}")
     print("-" * 65)
     
-    results.sort(key=lambda x: x["overall_accuracy"])
+    summary_results.sort(key=lambda x: x["overall_accuracy"])
     
-    for r in results:
+    for r in summary_results:
         lang = r["language"].capitalize()
         m = r["metrics"]
         print(f"{lang:<10} | {m['disposition']:>5.0f}% | {m['payment']:>5.0f}% | {m['reason']:>5.0f}% | {m['amount']:>5.0f}% | {m['date']:>5.0f}% | {r['overall_accuracy']:>5.0f}%")
+
+    # Write out the verbose results
+    with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(all_results, f, ensure_ascii=False, indent=4)
+    print(f"\nFinal verbose results saved to {RESULTS_FILE}")
 
 if __name__ == "__main__":
     main()
